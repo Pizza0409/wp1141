@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>homepage</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h2 data-zh="羅筠笙" data-en="YUN-SHENG, LO">羅筠笙</h2>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="#home" class="nav-link" data-zh="首頁" data-en="Home">首頁</a></li>
+                <li><a href="#about" class="nav-link" data-zh="關於我" data-en="About">關於我</a></li>
+                <li><a href="#education" class="nav-link" data-zh="學經歷" data-en="Education">學經歷</a></li>
+                <li><a href="#skills" class="nav-link" data-zh="技能" data-en="Skills">技能</a></li>
+            </ul>
+            <div class="language-switcher">
+                <button id="langToggle" class="lang-btn">EN</button>
+            </div>
+            <div class="hamburger">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        <!-- Hero Section -->
+        <section id="home" class="hero">
+            <div class="hero-container">
+                <div class="hero-content">
+                    <h1 class="hero-title">
+                        <span class="greeting" data-zh="你好，我是" data-en="Hello, I'm">你好，我是</span>
+                        <span class="name" data-zh="羅筠笙" data-en="YUN-SHENG, LO">羅筠笙</span>
+                    </h1>
+                    <p class="hero-subtitle" data-zh="軟體工程師學生 & 滑雪教練" data-en="Software Engineering Student & Ski Instructor">軟體工程師學生 & 滑雪教練</p>
+                    <p class="hero-description" data-zh="目前就讀於國立台灣大學，專精於軟體開發與系統設計。除了程式設計的熱忱，我也熱愛滑雪運動，在冬季擔任滑雪教練，展現我在技術與運動領域的多元能力。" data-en="Currently studying at National Taiwan University, specializing in software development and system design. Beyond my passion for programming, I also love skiing and work as a ski instructor during winter, demonstrating my diverse abilities in both technical and athletic fields.">
+                        目前就讀於國立台灣大學，專精於軟體開發與系統設計。
+                        除了程式設計的熱忱，我也熱愛滑雪運動，在冬季擔任滑雪教練，
+                        展現我在技術與運動領域的多元能力。
+                    </p>
+                    <div class="hero-buttons">
+                        <a href="#about" class="btn btn-primary" data-zh="了解更多" data-en="Learn More">了解更多</a>
+                        <a href="#skills" class="btn btn-secondary" data-zh="查看技能" data-en="View Skills">查看技能</a>
+                    </div>
+                </div>
+                <div class="hero-image">
+                    <div class="profile-card">
+                        <div class="profile-image">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="profile-info">
+                            <h3>羅筠笙</h3>
+                            <p data-zh="軟體工程師學生" data-en="Software Engineering Student">軟體工程師學生</p>
+                            <div class="social-links">
+                                <a href="tel:+886-XXX-XXX-XXX" class="social-link" title="Phone: +886-XXX-XXX-XXX"><i class="fas fa-phone"></i></a>
+                                <a href="mailto:r13525009@ntu.edu.tw" class="social-link" title="Email: r13525009@ntu.edu.tw"><i class="fas fa-envelope"></i></a>
+                                <a href="https://github.com/Pizza0409" class="social-link" title="GitHub"><i class="fab fa-github"></i></a>
+                                <a href="https://www.linkedin.com/in/yun-sheng-lo-7508771b5/" class="social-link" title="LinkedIn"><i class="fab fa-linkedin"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- About Section -->
+        <section id="about" class="about">
+            <div class="container">
+                <h2 class="section-title" data-zh="關於我" data-en="About Me">關於我</h2>
+                <div class="about-content">
+                    <div class="about-text">
+                        <p>
+                            我是一名充滿熱忱的軟體工程師學生，目前就讀於國立台灣大學。
+                            我對程式設計有著深厚的興趣，特別專精於前端開發、後端系統設計，
+                            以及資料結構與演算法。
+                        </p>
+                        <p>
+                            除了學術上的追求，我也是一個多元發展的人。在冬季時，
+                            我擔任滑雪教練，這不僅展現了我的運動能力，也培養了我
+                            的溝通技巧和領導能力。我相信這種多元的背景讓我成為
+                            一個更全面的專業人士。
+                        </p>
+                        <div class="about-highlights">
+                            <div class="highlight">
+                                <i class="fas fa-code"></i>
+                                <h4>程式設計</h4>
+                                <p>熱愛解決複雜問題，享受程式設計的創造過程</p>
+                            </div>
+                            <div class="highlight">
+                                <i class="fas fa-skiing"></i>
+                                <h4>滑雪教練</h4>
+                                <p>冬季擔任滑雪教練，培養溝通與教學能力</p>
+                            </div>
+                            <div class="highlight">
+                                <i class="fas fa-graduation-cap"></i>
+                                <h4>持續學習</h4>
+                                <p>保持對新技術的熱忱，不斷提升專業技能</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Education Section -->
+        <section id="education" class="education">
+            <div class="container">
+                <h2 class="section-title" data-zh="學經歷" data-en="Education & Experience">學經歷</h2>
+                <div class="timeline">
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <h3>國立台灣大學</h3>
+                            <p class="timeline-period">2024 - 至今</p>
+                            <p class="timeline-description">
+                                就讀國立台灣大學工程科學及海洋工程學系暨研究所，目前碩士二年級，專精於程式設計、資料結構、
+                                演算法、系統設計等核心課程。積極參與專案開發，
+                                累積實務經驗。
+                            </p>
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <h3>滑雪教練</h3>
+                            <p class="timeline-period">2023 - 至今</p>
+                            <p class="timeline-description">
+                                冬季期間擔任滑雪教練，教授初學者滑雪技巧。
+                                培養了良好的溝通能力、耐心和領導技巧，
+                                這些技能也應用在團隊合作和專案管理中。
+                            </p>
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <h3>專案開發經驗</h3>
+                            <p class="timeline-period">2022 - 至今</p>
+                            <p class="timeline-description">
+                                參與多個軟體開發專案，包括網頁應用程式、
+                                資料庫設計、API開發等。熟悉現代開發工具
+                                和最佳實務，具備完整的軟體開發生命週期經驗。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Skills Section -->
+        <section id="skills" class="skills">
+            <div class="container">
+                <h2 class="section-title" data-zh="技能專長" data-en="Skills & Expertise">技能專長</h2>
+                <div class="skills-grid">
+                    <div class="skill-category">
+                        <h3 data-zh="程式語言" data-en="Programming Languages">程式語言</h3>
+                        <div class="skill-items">
+                            <div class="skill-item">
+                                <span>JavaScript/TypeScript</span>
+                                <div class="skill-bar">
+                                    <div class="skill-progress" data-width="90"></div>
+                                </div>
+                            </div>
+                            <div class="skill-item">
+                                <span>Python</span>
+                                <div class="skill-bar">
+                                    <div class="skill-progress" data-width="85"></div>
+                                </div>
+                            </div>
+                            <div class="skill-item">
+                                <span>Java</span>
+                                <div class="skill-bar">
+                                    <div class="skill-progress" data-width="80"></div>
+                                </div>
+                            </div>
+                            <div class="skill-item">
+                                <span>C++</span>
+                                <div class="skill-bar">
+                                    <div class="skill-progress" data-width="75"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="skill-category">
+                        <h3 data-zh="技術框架" data-en="Technical Frameworks">技術框架</h3>
+                        <div class="skill-items">
+                            <div class="skill-item">
+                                <span>React</span>
+                                <div class="skill-bar">
+                                    <div class="skill-progress" data-width="85"></div>
+                                </div>
+                            </div>
+                            <div class="skill-item">
+                                <span>Node.js</span>
+                                <div class="skill-bar">
+                                    <div class="skill-progress" data-width="80"></div>
+                                </div>
+                            </div>
+                            <div class="skill-item">
+                                <span>HTML/CSS</span>
+                                <div class="skill-bar">
+                                    <div class="skill-progress" data-width="90"></div>
+                                </div>
+                            </div>
+                            <div class="skill-item">
+                                <span>Git</span>
+                                <div class="skill-bar">
+                                    <div class="skill-progress" data-width="85"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="skill-category">
+                        <h3 data-zh="軟技能" data-en="Soft Skills">軟技能</h3>
+                        <div class="skill-items">
+                            <div class="skill-item">
+                                <span data-zh="團隊合作" data-en="Teamwork">團隊合作</span>
+                                <div class="skill-bar">
+                                    <div class="skill-progress" data-width="90"></div>
+                                </div>
+                            </div>
+                            <div class="skill-item">
+                                <span data-zh="溝通能力" data-en="Communication">溝通能力</span>
+                                <div class="skill-bar">
+                                    <div class="skill-progress" data-width="85"></div>
+                                </div>
+                            </div>
+                            <div class="skill-item">
+                                <span data-zh="問題解決" data-en="Problem Solving">問題解決</span>
+                                <div class="skill-bar">
+                                    <div class="skill-progress" data-width="90"></div>
+                                </div>
+                            </div>
+                            <div class="skill-item">
+                                <span data-zh="教學指導" data-en="Teaching & Mentoring">教學指導</span>
+                                <div class="skill-bar">
+                                    <div class="skill-progress" data-width="80"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+
+    <footer class="footer">
+        <div class="container">
+            <p data-zh="© 2025 羅筠笙. 保留所有權利." data-en="© 2025 Yun-Sheng Lo. All rights reserved.">&copy; 2025 羅筠笙. 保留所有權利.</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

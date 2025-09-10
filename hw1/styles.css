@@ -48,20 +48,28 @@ body {
     color: #60a5fa;
     font-weight: 700;
     font-size: 1.5rem;
+    min-width: 200px;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: all 0.3s ease;
 }
 
 .nav-menu {
     display: flex;
     list-style: none;
     gap: 2rem;
+    transition: all 0.3s ease;
 }
 
 .nav-link {
     text-decoration: none;
     color: #e2e8f0;
     font-weight: 500;
-    transition: color 0.3s ease;
+    transition: all 0.3s ease;
     position: relative;
+    white-space: nowrap;
 }
 
 .nav-link:hover {

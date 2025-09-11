@@ -27,6 +27,14 @@ class PersonalWebsite {
             this.hamburger.addEventListener('click', () => {
                 this.hamburger.classList.toggle('active');
                 this.navMenu.classList.toggle('active');
+                
+                // Add language switcher to mobile menu when active
+                if (this.navMenu.classList.contains('active')) {
+                    const languageSwitcher = document.querySelector('.language-switcher');
+                    if (languageSwitcher && !this.navMenu.querySelector('.language-switcher')) {
+                        this.navMenu.appendChild(languageSwitcher.cloneNode(true));
+                    }
+                }
             });
 
             // Close menu when clicking on nav links

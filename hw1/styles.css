@@ -44,6 +44,12 @@ body {
     height: 70px;
 }
 
+.nav-right {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
 .nav-logo h2 {
     color: #60a5fa;
     font-weight: 700;
@@ -625,8 +631,8 @@ section {
 
 /* Responsive Design */
 @media (max-width: 768px) {
-    .language-switcher {
-        order: -1;
+    .nav-right {
+        display: none;
     }
 
     .hamburger {
@@ -649,6 +655,12 @@ section {
 
     .nav-menu.active {
         left: 0;
+    }
+
+    .nav-menu.active .language-switcher {
+        display: flex;
+        justify-content: center;
+        margin-top: 1rem;
     }
 
     .hero-container {

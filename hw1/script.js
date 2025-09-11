@@ -345,11 +345,11 @@ class PersonalWebsite {
         const aboutTexts = document.querySelectorAll('.about-text p');
         if (aboutTexts.length >= 2) {
             if (this.currentLang === 'zh') {
-                aboutTexts[0].textContent = '我是一名充滿熱忱的軟體工程師學生，目前就讀於國立台灣大學。我對程式設計有著深厚的興趣，特別專精於前端開發、後端系統設計，以及資料結構與演算法。';
-                aboutTexts[1].textContent = '除了學術上的追求，我也是一個多元發展的人。在冬季時，我擔任滑雪教練，這不僅展現了我的運動能力，也培養了我的溝通技巧和領導能力。我相信這種多元的背景讓我成為一個更全面的專業人士。';
+                aboutTexts[0].textContent = '我是一名對程式設計充滿熱忱的學生，目前就讀於國立臺灣大學。我對程式設計有著深厚的興趣，特別是關於機器學習、影像辨識以及網頁設計。';
+                aboutTexts[1].textContent = '除了學術以外，我對於運動也很有興趣，目前規劃冬季要到日本進行受訓，並考取滑雪教練的證照，目前主要是往單板滑雪方向精進，滑雪這項運動培養了我的溝通技巧和領導能力。我相信這樣的經驗讓我成為一個更全面的專業人士。';
             } else {
-                aboutTexts[0].textContent = 'I am a passionate software engineering student currently studying at National Taiwan University. I have a deep interest in programming, specializing in frontend development, backend system design, and data structures & algorithms.';
-                aboutTexts[1].textContent = 'Beyond academic pursuits, I am a multifaceted individual. During winter, I work as a ski instructor, which not only showcases my athletic abilities but also develops my communication skills and leadership qualities. I believe this diverse background makes me a more well-rounded professional.';
+                aboutTexts[0].textContent = 'I am a student passionate about programming, currently studying at National Taiwan University. I have a deep interest in programming, particularly in machine learning, image recognition, and web design.';
+                aboutTexts[1].textContent = 'Beyond academics, I am also very interested in sports. I am currently planning to go to Japan for training this winter and obtain a ski instructor certification, focusing mainly on snowboarding. Skiing has developed my communication skills and leadership abilities. I believe this experience makes me a more well-rounded professional.';
             }
         }
 
@@ -357,17 +357,17 @@ class PersonalWebsite {
         const highlights = document.querySelectorAll('.highlight');
         if (highlights.length >= 3) {
             if (this.currentLang === 'zh') {
-                highlights[0].querySelector('h4').textContent = '程式設計';
-                highlights[0].querySelector('p').textContent = '熱愛解決複雜問題，享受程式設計的創造過程';
+                highlights[0].querySelector('h4').textContent = '機器學習';
+                highlights[0].querySelector('p').textContent = '專精於影像辨識與深度學習，熱愛解決複雜的技術問題';
                 highlights[1].querySelector('h4').textContent = '滑雪教練';
-                highlights[1].querySelector('p').textContent = '冬季擔任滑雪教練，培養溝通與教學能力';
+                highlights[1].querySelector('p').textContent = '規劃前往日本受訓，準備考取滑雪教練證照';
                 highlights[2].querySelector('h4').textContent = '持續學習';
                 highlights[2].querySelector('p').textContent = '保持對新技術的熱忱，不斷提升專業技能';
             } else {
-                highlights[0].querySelector('h4').textContent = 'Programming';
-                highlights[0].querySelector('p').textContent = 'Passionate about solving complex problems and enjoying the creative process of programming';
-                highlights[1].querySelector('h4').textContent = 'Ski Instructor';
-                highlights[1].querySelector('p').textContent = 'Work as a ski instructor during winter, developing communication and teaching skills';
+                highlights[0].querySelector('h4').textContent = 'Machine Learning';
+                highlights[0].querySelector('p').textContent = 'Specialized in image recognition and deep learning, passionate about solving complex technical problems';
+                highlights[1].querySelector('h4').textContent = 'Snowboard Instructor';
+                highlights[1].querySelector('p').textContent = 'Planning to go to Japan for training to obtain snowboard instructor certification';
                 highlights[2].querySelector('h4').textContent = 'Continuous Learning';
                 highlights[2].querySelector('p').textContent = 'Maintain enthusiasm for new technologies and continuously improve professional skills';
             }
@@ -377,19 +377,23 @@ class PersonalWebsite {
         const timelineItems = document.querySelectorAll('.timeline-content');
         if (timelineItems.length >= 3) {
             if (this.currentLang === 'zh') {
-                timelineItems[0].querySelector('h3').textContent = '國立台灣大學';
-                timelineItems[0].querySelector('.timeline-description').textContent = '就讀軟體工程相關科系，專精於程式設計、資料結構、演算法、系統設計等核心課程。積極參與專案開發，累積實務經驗。';
-                timelineItems[1].querySelector('h3').textContent = '滑雪教練';
-                timelineItems[1].querySelector('.timeline-description').textContent = '冬季期間擔任滑雪教練，教授初學者滑雪技巧。培養了良好的溝通能力、耐心和領導技巧，這些技能也應用在團隊合作和專案管理中。';
-                timelineItems[2].querySelector('h3').textContent = '專案開發經驗';
-                timelineItems[2].querySelector('.timeline-description').textContent = '參與多個軟體開發專案，包括網頁應用程式、資料庫設計、API開發等。熟悉現代開發工具和最佳實務，具備完整的軟體開發生命週期經驗。';
+                timelineItems[0].querySelector('h3').textContent = '滑雪教練';
+                timelineItems[0].querySelector('.timeline-description').textContent = '冬季期間擔任滑雪教練，教授初學者滑雪技巧。培養了良好的溝通能力、耐心和領導技巧，這些技能也應用在團隊合作和專案管理中。';
+                timelineItems[1].querySelector('h3').textContent = '國立臺灣大學';
+                timelineItems[1].querySelector('h4').textContent = '工程科學及海洋工程學系暨研究所';
+                timelineItems[1].querySelector('.timeline-description').textContent = '就讀國立臺灣大學工程科學及海洋工程學系暨研究所，目前碩士二年級，專精於程式設計、資料結構、演算法、系統設計等核心課程。積極參與專案開發，累積實務經驗。';
+                timelineItems[2].querySelector('h3').textContent = '國立成功大學';
+                timelineItems[2].querySelector('h4').textContent = '水利及海洋工程學系學系輔工程科學系';
+                timelineItems[2].querySelector('.timeline-description').textContent = '在大學期間內除了本系上的課程外，因為對於程式設計有著濃厚的興趣所以選擇工程科學系作為輔系。在輔系期間內修習了許多程式設計相關的課程，包含程式設計、資料結構、作業系統等資工領域相關課程，在現階段奠定了不錯的程式基礎。';
             } else {
-                timelineItems[0].querySelector('h3').textContent = 'National Taiwan University';
-                timelineItems[0].querySelector('.timeline-description').textContent = 'Studying software engineering related fields, specializing in programming, data structures, algorithms, system design and other core courses. Actively participating in project development and accumulating practical experience.';
-                timelineItems[1].querySelector('h3').textContent = 'Ski Instructor';
-                timelineItems[1].querySelector('.timeline-description').textContent = 'Work as a ski instructor during winter, teaching skiing techniques to beginners. Developed excellent communication skills, patience and leadership skills, which are also applied in teamwork and project management.';
-                timelineItems[2].querySelector('h3').textContent = 'Project Development Experience';
-                timelineItems[2].querySelector('.timeline-description').textContent = 'Participated in multiple software development projects, including web applications, database design, API development, etc. Familiar with modern development tools and best practices, with complete software development lifecycle experience.';
+                timelineItems[0].querySelector('h3').textContent = 'Snowboard Instructor';
+                timelineItems[0].querySelector('.timeline-description').textContent = 'Work as a snowboard instructor during winter, teaching skiing techniques to beginners. Developed excellent communication skills, patience and leadership skills, which are also applied in teamwork and project management.';
+                timelineItems[1].querySelector('h3').textContent = 'National Taiwan University';
+                timelineItems[1].querySelector('h4').textContent = 'Department and Graduate Institute of Engineering Science and Ocean Engineering';
+                timelineItems[1].querySelector('.timeline-description').textContent = 'Studying in the Department and Graduate Institute of Engineering Science and Ocean Engineering at National Taiwan University, currently in second year of master\'s program, specializing in programming, data structures, algorithms, system design and other core courses. Actively participating in project development and accumulating practical experience.';
+                timelineItems[2].querySelector('h3').textContent = 'National Cheng Kung University';
+                timelineItems[2].querySelector('h4').textContent = 'Department of Hydraulic and Ocean Engineering, Minor in Engineering Science';
+                timelineItems[2].querySelector('.timeline-description').textContent = 'During university, in addition to courses in my major, I chose Engineering Science as a minor due to my strong interest in programming. During the minor program, I studied many programming-related courses, including programming, data structures, operating systems and other computer science courses, establishing a solid programming foundation.';
             }
         }
 
@@ -488,6 +492,32 @@ style.textContent = `
     .navbar.scrolled {
         background: rgba(255, 255, 255, 0.98);
         box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .navbar.scrolled .nav-logo h2 {
+        color: #1e293b;
+    }
+    
+    .navbar.scrolled .nav-link {
+        color: #1e293b;
+    }
+    
+    .navbar.scrolled .nav-link:hover {
+        color: #60a5fa;
+    }
+    
+    .navbar.scrolled .bar {
+        background-color: #1e293b;
+    }
+    
+    .navbar.scrolled .lang-btn {
+        border-color: #1e293b;
+        color: #1e293b;
+    }
+    
+    .navbar.scrolled .lang-btn:hover {
+        background: #1e293b;
+        color: white;
     }
     
     .hamburger.active .bar:nth-child(2) {

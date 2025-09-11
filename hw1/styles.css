@@ -262,8 +262,15 @@ body {
     align-items: center;
     justify-content: center;
     margin: 0 auto 1rem;
-    font-size: 3rem;
-    color: #fff;
+    overflow: hidden;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+}
+
+.profile-photo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
 }
 
 .profile-info h3 {
@@ -407,12 +414,54 @@ section {
     position: relative;
 }
 
-.timeline-item:nth-child(odd) {
-    flex-direction: row;
+/* Timeline item positioning */
+.timeline-item-current {
+    flex-direction: row-reverse; /* Right side */
+    margin-bottom: 1rem;
 }
 
-.timeline-item:nth-child(even) {
-    flex-direction: row-reverse;
+.timeline-item-overlap {
+    flex-direction: row; /* Left side */
+    margin-top: -1rem; /* Overlap with current item */
+    margin-bottom: 2rem;
+    z-index: 1;
+}
+
+.timeline-item-completed {
+    flex-direction: row-reverse; /* Right side */
+    margin-bottom: 0;
+}
+
+/* Timeline content positioning */
+.timeline-content-left {
+    width: 45%;
+    margin-right: auto;
+    margin-left: 0;
+}
+
+.timeline-content-right {
+    width: 45%;
+    margin-left: auto;
+    margin-right: 0;
+}
+
+/* Timeline markers */
+.timeline-marker-current {
+    background: #10b981; /* Green for current */
+    border: 4px solid #0f172a;
+    box-shadow: 0 0 0 4px #10b981;
+}
+
+.timeline-marker-overlap {
+    background: #60a5fa; /* Blue for ongoing */
+    border: 4px solid #0f172a;
+    box-shadow: 0 0 0 4px #60a5fa;
+}
+
+.timeline-marker-completed {
+    background: #6b7280; /* Gray for completed */
+    border: 4px solid #0f172a;
+    box-shadow: 0 0 0 4px #6b7280;
 }
 
 .timeline-marker {
@@ -685,15 +734,34 @@ section {
     .timeline-item {
         flex-direction: row !important;
         padding-left: 50px;
+        margin-top: 0 !important; /* Reset margin for mobile */
+        margin-bottom: 2rem !important;
+    }
+
+    .timeline-item-current,
+    .timeline-item-overlap,
+    .timeline-item-completed {
+        flex-direction: row !important;
+        margin-top: 0 !important;
     }
 
     .timeline-marker {
         left: 20px;
     }
 
-    .timeline-content {
+    .timeline-content,
+    .timeline-content-left,
+    .timeline-content-right {
         width: 100%;
         margin: 0 !important;
+    }
+
+    .timeline-marker-current,
+    .timeline-marker-overlap,
+    .timeline-marker-completed {
+        left: 20px;
+        background: #60a5fa !important; /* Reset color for mobile */
+        box-shadow: 0 0 0 4px #334155 !important;
     }
 
     .contact-content {

@@ -19,6 +19,8 @@ class PersonalWebsite {
         this.setupSmoothScrolling();
         this.setupNavbarScroll();
         this.setupLanguageToggle();
+        this.setupBackToTop();
+        this.setupPageNavigation();
     }
 
     // Navigation functionality
@@ -299,6 +301,74 @@ class PersonalWebsite {
         }
     }
 
+    setupBackToTop() {
+        const backToTopBtn = document.getElementById('backToTop');
+        
+        // Show/hide button based on scroll position
+        window.addEventListener('scroll', () => {
+            if (window.pageYOffset > 300) {
+                backToTopBtn.classList.add('visible');
+            } else {
+                backToTopBtn.classList.remove('visible');
+            }
+        });
+        
+        // Scroll to top when clicked
+        backToTopBtn.addEventListener('click', () => {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+    }
+
+    setupPageNavigation() {
+        const pageNav = document.getElementById('pageNav');
+        const navToggle = pageNav.querySelector('.page-nav-toggle');
+        const navMenu = pageNav.querySelector('.page-nav-menu');
+        
+        // Toggle navigation menu
+        navToggle.addEventListener('click', () => {
+            pageNav.classList.toggle('active');
+        });
+        
+        // Close menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!pageNav.contains(e.target)) {
+                pageNav.classList.remove('active');
+            }
+        });
+        
+        // Close menu when clicking on nav items
+        const navItems = navMenu.querySelectorAll('.page-nav-item');
+        navItems.forEach(item => {
+            item.addEventListener('click', () => {
+                pageNav.classList.remove('active');
+            });
+        });
+        
+        // Update active nav item based on scroll position
+        window.addEventListener('scroll', () => {
+            const sections = document.querySelectorAll('section[id]');
+            const scrollPos = window.pageYOffset + 100;
+            
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                const sectionHeight = section.offsetHeight;
+                const sectionId = section.getAttribute('id');
+                
+                if (scrollPos >= sectionTop && scrollPos < sectionTop + sectionHeight) {
+                    navItems.forEach(item => {
+                        item.classList.remove('active');
+                        if (item.getAttribute('href') === `#${sectionId}`) {
+                            item.classList.add('active');
+                        }
+                    });
+                }
+            });
+        });
+    }
+
     toggleLanguage() {
         this.currentLang = this.currentLang === 'zh' ? 'en' : 'zh';
         this.updateLanguage();
@@ -397,35 +467,82 @@ class PersonalWebsite {
             }
         }
 
-        // Update skill categories
-        const skillCategories = document.querySelectorAll('.skill-category h3');
-        if (skillCategories.length >= 3) {
+        // Update skill categories and items
+        const skillCategories = document.querySelectorAll('.skill-category');
+        const skillCategoryTitles = document.querySelectorAll('.skill-category h3');
+        
+        // Update category titles
+        if (skillCategoryTitles.length >= 3) {
             if (this.currentLang === 'zh') {
-                skillCategories[0].textContent = '程式語言';
-                skillCategories[1].textContent = '技術框架';
-                skillCategories[2].textContent = '軟技能';
+                skillCategoryTitles[0].textContent = '程式語言';
+                skillCategoryTitles[1].textContent = '技術框架與工具';
+                skillCategoryTitles[2].textContent = '軟技能';
             } else {
-                skillCategories[0].textContent = 'Programming Languages';
-                skillCategories[1].textContent = 'Technical Frameworks';
-                skillCategories[2].textContent = 'Soft Skills';
+                skillCategoryTitles[0].textContent = 'Programming Languages';
+                skillCategoryTitles[1].textContent = 'Technical Frameworks & Tools';
+                skillCategoryTitles[2].textContent = 'Soft Skills';
+            }
+        }
+        if (skillCategories.length >= 3) {
+            // Programming Languages (first category)
+            const progSkills = skillCategories[0].querySelectorAll('.skill-item span');
+            if (progSkills.length >= 3) {
+                if (this.currentLang === 'zh') {
+                    progSkills[0].textContent = 'Python';
+                    progSkills[1].textContent = 'HTML/CSS';
+                    progSkills[2].textContent = 'JavaScript';
+                } else {
+                    progSkills[0].textContent = 'Python';
+                    progSkills[1].textContent = 'HTML/CSS';
+                    progSkills[2].textContent = 'JavaScript';
+                }
+            }
+            
+            // Technical Frameworks & Tools (second category)
+            const techSkills = skillCategories[1].querySelectorAll('.skill-item span');
+            if (techSkills.length >= 5) {
+                if (this.currentLang === 'zh') {
+                    techSkills[0].textContent = 'TensorFlow';
+                    techSkills[1].textContent = 'Git';
+                    techSkills[2].textContent = 'Object Detection';
+                    techSkills[3].textContent = 'SketchUp';
+                    techSkills[4].textContent = 'AutoCAD';
+                } else {
+                    techSkills[0].textContent = 'TensorFlow';
+                    techSkills[1].textContent = 'Git';
+                    techSkills[2].textContent = 'Object Detection';
+                    techSkills[3].textContent = 'SketchUp';
+                    techSkills[4].textContent = 'AutoCAD';
+                }
+            }
+            
+            // Soft Skills (third category)
+            const softSkills = skillCategories[2].querySelectorAll('.skill-item span');
+            if (softSkills.length >= 4) {
+                if (this.currentLang === 'zh') {
+                    softSkills[0].textContent = '團隊合作';
+                    softSkills[1].textContent = '溝通能力';
+                    softSkills[2].textContent = '問題解決';
+                    softSkills[3].textContent = '教學指導';
+                } else {
+                    softSkills[0].textContent = 'Teamwork';
+                    softSkills[1].textContent = 'Communication';
+                    softSkills[2].textContent = 'Problem Solving';
+                    softSkills[3].textContent = 'Teaching & Mentoring';
+                }
             }
         }
 
-        // Update skill items
-        const skillItems = document.querySelectorAll('.skill-item span');
-        if (skillItems.length >= 4) {
-            if (this.currentLang === 'zh') {
-                skillItems[0].textContent = '團隊合作';
-                skillItems[1].textContent = '溝通能力';
-                skillItems[2].textContent = '問題解決';
-                skillItems[3].textContent = '教學指導';
-            } else {
-                skillItems[0].textContent = 'Teamwork';
-                skillItems[1].textContent = 'Communication';
-                skillItems[2].textContent = 'Problem Solving';
-                skillItems[3].textContent = 'Teaching & Mentoring';
+        // Update page navigation items
+        const pageNavItems = document.querySelectorAll('.page-nav-item');
+        pageNavItems.forEach(item => {
+            if (item.hasAttribute('data-zh') && item.hasAttribute('data-en')) {
+                const text = this.currentLang === 'zh' ? 
+                    item.getAttribute('data-zh') : 
+                    item.getAttribute('data-en');
+                item.querySelector('span').textContent = text;
             }
-        }
+        });
 
         // Update footer - use data attributes if available
         const footer = document.querySelector('.footer p');

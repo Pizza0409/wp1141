@@ -30,4 +30,5 @@ export interface GameState {
   gameStatus: 'playing' | 'check' | 'checkmate' | 'stalemate' | 'white-king-captured' | 'black-king-captured';
   moveHistory: Move[];
   capturedPieces: { white: Piece[]; black: Piece[] };
+  pendingPromotion: Position | null;
 }

@@ -48,7 +48,7 @@ const ChessPiece: React.FC<ChessPieceProps> = ({
       onClick={() => onClick(position)}
     >
       {piece && (
-        <div className={`chess-piece ${piece.color}`}>
+        <div className={`chess-piece ${piece.color} ${piece.type}`}>
           {getPieceSymbol(piece)}
         </div>
       )}

@@ -1,3 +1,6 @@
+import { Board, Move, Color } from '../types/chess';
+import { makeMove, isCheckmate } from './chessLogic';
+
 // 音效工具
 export const playSound = (soundType: 'move' | 'capture' | 'check' | 'checkmate') => {
   try {

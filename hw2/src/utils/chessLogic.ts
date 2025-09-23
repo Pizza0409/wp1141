@@ -5,36 +5,36 @@ export const createInitialBoard = (): Board => {
   
   // 黑方棋子
   board[0] = [
-    { type: 'rook', color: 'black' },
-    { type: 'knight', color: 'black' },
-    { type: 'bishop', color: 'black' },
-    { type: 'queen', color: 'black' },
-    { type: 'king', color: 'black' },
-    { type: 'bishop', color: 'black' },
-    { type: 'knight', color: 'black' },
-    { type: 'rook', color: 'black' }
+    { type: 'rook', color: 'black', hasMoved: false },
+    { type: 'knight', color: 'black', hasMoved: false },
+    { type: 'bishop', color: 'black', hasMoved: false },
+    { type: 'queen', color: 'black', hasMoved: false },
+    { type: 'king', color: 'black', hasMoved: false },
+    { type: 'bishop', color: 'black', hasMoved: false },
+    { type: 'knight', color: 'black', hasMoved: false },
+    { type: 'rook', color: 'black', hasMoved: false }
   ];
   
   // 黑方兵
   for (let col = 0; col < 8; col++) {
-    board[1][col] = { type: 'pawn', color: 'black' };
+    board[1][col] = { type: 'pawn', color: 'black', hasMoved: false };
   }
   
   // 白方兵
   for (let col = 0; col < 8; col++) {
-    board[6][col] = { type: 'pawn', color: 'white' };
+    board[6][col] = { type: 'pawn', color: 'white', hasMoved: false };
   }
   
   // 白方棋子
   board[7] = [
-    { type: 'rook', color: 'white' },
-    { type: 'knight', color: 'white' },
-    { type: 'bishop', color: 'white' },
-    { type: 'queen', color: 'white' },
-    { type: 'king', color: 'white' },
-    { type: 'bishop', color: 'white' },
-    { type: 'knight', color: 'white' },
-    { type: 'rook', color: 'white' }
+    { type: 'rook', color: 'white', hasMoved: false },
+    { type: 'knight', color: 'white', hasMoved: false },
+    { type: 'bishop', color: 'white', hasMoved: false },
+    { type: 'queen', color: 'white', hasMoved: false },
+    { type: 'king', color: 'white', hasMoved: false },
+    { type: 'bishop', color: 'white', hasMoved: false },
+    { type: 'knight', color: 'white', hasMoved: false },
+    { type: 'rook', color: 'white', hasMoved: false }
   ];
   
   return board;
@@ -89,7 +89,19 @@ export const getPossibleMoves = (board: Board, pos: Position): Position[] => {
       break;
   }
   
-  return moves.filter(move => isValidPosition(move));
+  // 過濾掉會導致自將軍的移動
+  return moves.filter(move => {
+    if (!isValidPosition(move)) return false;
+    
+    const newBoard = makeMove(board, {
+      from: pos,
+      to: move,
+      piece,
+      capturedPiece: getPieceAt(board, move) || undefined
+    });
+    
+    return !isInCheck(newBoard, piece.color);
+  });
 };
 
 const getPawnMoves = (board: Board, pos: Position, piece: Piece): Position[] => {
@@ -115,11 +127,17 @@ const getPawnMoves = (board: Board, pos: Position, piece: Piece): Position[] => 
   const leftDiag = { row: pos.row + direction, col: pos.col - 1 };
   const rightDiag = { row: pos.row + direction, col: pos.col + 1 };
   
-  if (isValidPosition(leftDiag) && isEnemy(piece, getPieceAt(board, leftDiag))) {
-    moves.push(leftDiag);
+  if (isValidPosition(leftDiag)) {
+    const leftPiece = getPieceAt(board, leftDiag);
+    if (leftPiece && isEnemy(piece, leftPiece)) {
+      moves.push(leftDiag);
+    }
   }
-  if (isValidPosition(rightDiag) && isEnemy(piece, getPieceAt(board, rightDiag))) {
-    moves.push(rightDiag);
+  if (isValidPosition(rightDiag)) {
+    const rightPiece = getPieceAt(board, rightDiag);
+    if (rightPiece && isEnemy(piece, rightPiece)) {
+      moves.push(rightDiag);
+    }
   }
   
   return moves;
@@ -285,7 +303,10 @@ const getKnightMoves = (board: Board, pos: Position, piece: Piece): Position[] =
 
 export const makeMove = (board: Board, move: Move): Board => {
   const newBoard = board.map(row => [...row]);
-  newBoard[move.to.row][move.to.col] = move.piece;
+  
+  // 創建移動後的棋子，標記為已移動
+  const movedPiece = { ...move.piece, hasMoved: true };
+  newBoard[move.to.row][move.to.col] = movedPiece;
   newBoard[move.from.row][move.from.col] = null;
   
   // 處理王車易位
@@ -294,13 +315,13 @@ export const makeMove = (board: Board, move: Move): Board => {
     if (move.to.col === 6) { // 短易位 (kingside)
       const rook = newBoard[move.from.row][7];
       if (rook && rook.type === 'rook') {
-        newBoard[move.from.row][5] = rook;
+        newBoard[move.from.row][5] = { ...rook, hasMoved: true };
         newBoard[move.from.row][7] = null;
       }
     } else if (move.to.col === 2) { // 長易位 (queenside)
       const rook = newBoard[move.from.row][0];
       if (rook && rook.type === 'rook') {
-        newBoard[move.from.row][3] = rook;
+        newBoard[move.from.row][3] = { ...rook, hasMoved: true };
         newBoard[move.from.row][0] = null;
       }
     }
@@ -331,7 +352,7 @@ export const isInCheck = (board: Board, color: Color): boolean => {
     for (let col = 0; col < 8; col++) {
       const piece = board[row][col];
       if (piece && piece.color === enemyColor) {
-        const moves = getPossibleMoves(board, { row, col });
+        const moves = getBasicMoves(board, { row, col }, piece);
         if (moves.some(move => move.row === kingPos!.row && move.col === kingPos!.col)) {
           return true;
         }
@@ -350,7 +371,7 @@ export const isCheckmate = (board: Board, color: Color): boolean => {
     for (let col = 0; col < 8; col++) {
       const piece = board[row][col];
       if (piece && piece.color === color) {
-        const moves = getPossibleMoves(board, { row, col });
+        const moves = getBasicMoves(board, { row, col }, piece);
         for (const move of moves) {
           const newBoard = makeMove(board, {
             from: { row, col },
@@ -369,12 +390,74 @@ export const isCheckmate = (board: Board, color: Color): boolean => {
   return true;
 };
 
+// 簡化版本的移動計算，用於 isSquareAttacked，避免遞迴
+const getBasicMoves = (board: Board, pos: Position, piece: Piece): Position[] => {
+  switch (piece.type) {
+    case 'pawn':
+      return getBasicPawnMoves(board, pos, piece);
+    case 'rook':
+      return getRookMoves(board, pos, piece);
+    case 'bishop':
+      return getBishopMoves(board, pos, piece);
+    case 'queen':
+      return getQueenMoves(board, pos, piece);
+    case 'king':
+      return getBasicKingMoves(board, pos, piece);
+    case 'knight':
+      return getKnightMoves(board, pos, piece);
+    default:
+      return [];
+  }
+};
+
+// 簡化版本的國王移動，不包含王車易位
+const getBasicKingMoves = (board: Board, pos: Position, piece: Piece): Position[] => {
+  const moves: Position[] = [];
+  const directions = [
+    { row: -1, col: -1 }, { row: -1, col: 0 }, { row: -1, col: 1 },
+    { row: 0, col: -1 }, { row: 0, col: 1 },
+    { row: 1, col: -1 }, { row: 1, col: 0 }, { row: 1, col: 1 }
+  ];
+  
+  for (const dir of directions) {
+    const newPos = { row: pos.row + dir.row, col: pos.col + dir.col };
+    if (!isValidPosition(newPos)) continue;
+    
+    const targetPiece = getPieceAt(board, newPos);
+    if (targetPiece === null || isEnemy(piece, targetPiece)) {
+      moves.push(newPos);
+    }
+  }
+  
+  return moves;
+};
+
+// 簡化版本的兵移動，用於攻擊檢測
+const getBasicPawnMoves = (board: Board, pos: Position, piece: Piece): Position[] => {
+  const moves: Position[] = [];
+  const direction = piece.color === 'white' ? -1 : 1;
+  
+  // 只檢查斜向攻擊
+  const leftDiag = { row: pos.row + direction, col: pos.col - 1 };
+  const rightDiag = { row: pos.row + direction, col: pos.col + 1 };
+  
+  if (isValidPosition(leftDiag)) {
+    moves.push(leftDiag);
+  }
+  if (isValidPosition(rightDiag)) {
+    moves.push(rightDiag);
+  }
+  
+  return moves;
+};
+
 export const isSquareAttacked = (board: Board, pos: Position, byColor: Color): boolean => {
   for (let row = 0; row < 8; row++) {
     for (let col = 0; col < 8; col++) {
       const piece = board[row][col];
       if (piece && piece.color === byColor) {
-        const moves = getPossibleMoves(board, { row, col });
+        // 使用簡化版本的移動計算，避免遞迴調用
+        const moves = getBasicMoves(board, { row, col }, piece);
         if (moves.some(move => move.row === pos.row && move.col === pos.col)) {
           return true;
         }
@@ -392,7 +475,7 @@ export const isStalemate = (board: Board, color: Color): boolean => {
     for (let col = 0; col < 8; col++) {
       const piece = board[row][col];
       if (piece && piece.color === color) {
-        const moves = getPossibleMoves(board, { row, col });
+        const moves = getBasicMoves(board, { row, col }, piece);
         for (const move of moves) {
           const newBoard = makeMove(board, {
             from: { row, col },

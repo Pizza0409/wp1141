@@ -11,6 +11,7 @@ interface GameControlsProps {
   isAIMode: boolean;
   onToggleAI: () => void;
   moveWarning?: string;
+  onShowRules: () => void;
 }
 
 const GameControls: React.FC<GameControlsProps> = ({
@@ -22,20 +23,21 @@ const GameControls: React.FC<GameControlsProps> = ({
   onNewGame,
   isAIMode,
   onToggleAI,
-  moveWarning
+  moveWarning,
+  onShowRules
 }) => {
   const getStatusMessage = () => {
     switch (gameStatus) {
       case 'check':
         return `將軍！${currentPlayer === 'white' ? '白方' : '黑方'}被將軍`;
       case 'checkmate':
-        return `將死！${currentPlayer === 'white' ? '黑方' : '白方'}獲勝`;
+        return `將死！${currentPlayer === 'white' ? '黑方' : '白方'}獲勝！遊戲結束`;
       case 'stalemate':
-        return '和棋！';
+        return '和棋！遊戲結束';
       case 'white-king-captured':
-        return '白方國王被吃掉！黑方獲勝！';
+        return '白方國王被吃掉！黑方獲勝！遊戲結束';
       case 'black-king-captured':
-        return '黑方國王被吃掉！白方獲勝！';
+        return '黑方國王被吃掉！白方獲勝！遊戲結束';
       default:
         return `輪到 ${currentPlayer === 'white' ? '白方' : '黑方'} 下棋`;
     }
@@ -128,6 +130,12 @@ const GameControls: React.FC<GameControlsProps> = ({
           onClick={onToggleAI}
         >
           {isAIMode ? 'AI 模式' : '雙人模式'}
+        </button>
+        <button 
+          className="control-btn rules-btn" 
+          onClick={onShowRules}
+        >
+          📖 遊戲規則
         </button>
       </div>
     </div>

@@ -19,7 +19,8 @@ export const useChessGame = () => {
     possibleMoves: [],
     gameStatus: 'playing',
     moveHistory: [],
-    capturedPieces: { white: [], black: [] }
+    capturedPieces: { white: [], black: [] },
+    pendingPromotion: null
   }));
   
   const [moveWarning, setMoveWarning] = useState<string>('');
@@ -85,7 +86,17 @@ export const useChessGame = () => {
           capturedPiece: capturedPiece || undefined
         };
         
-        // 檢查移動後是否會被 Checkmate
+        // 先檢查移動後是否會使自己被將軍
+        const newBoard = makeMove(prev.board, newMove);
+        const wouldCauseSelfCheck = isInCheck(newBoard, prev.currentPlayer);
+        
+        if (wouldCauseSelfCheck) {
+          setMoveWarning('警告：此移動會使自己被將軍！');
+          setTimeout(() => setMoveWarning(''), 3000);
+          return prev; // 不允許此移動
+        }
+        
+        // 檢查移動後是否會讓對方被將死
         const wouldCauseCheck = wouldCauseCheckmate(prev.board, newMove, prev.currentPlayer);
         if (wouldCauseCheck) {
           setMoveWarning('警告：此移動會讓對方將死！');
@@ -94,7 +105,21 @@ export const useChessGame = () => {
           setMoveWarning('');
         }
         
-        const newBoard = makeMove(prev.board, newMove);
+        // 檢查是否需要升變
+        const needsPromotion = pieceToMove.type === 'pawn' && 
+          ((pieceToMove.color === 'white' && pos.row === 0) || 
+           (pieceToMove.color === 'black' && pos.row === 7));
+        
+        if (needsPromotion) {
+          // 需要升變，暫停遊戲等待玩家選擇
+          return {
+            ...prev,
+            board: newBoard,
+            selectedSquare: null,
+            possibleMoves: [],
+            pendingPromotion: pos
+          };
+        }
         
         const newCapturedPieces = { ...prev.capturedPieces };
         if (capturedPiece) {
@@ -128,7 +153,8 @@ export const useChessGame = () => {
           possibleMoves: [],
           gameStatus: newGameStatus,
           moveHistory: [...prev.moveHistory, newMove],
-          capturedPieces: newCapturedPieces
+          capturedPieces: newCapturedPieces,
+          pendingPromotion: null
         };
       }
       
@@ -162,9 +188,39 @@ export const useChessGame = () => {
       possibleMoves: [],
       gameStatus: 'playing',
       moveHistory: [],
-      capturedPieces: { white: [], black: [] }
+      capturedPieces: { white: [], black: [] },
+      pendingPromotion: null
     });
   }, []);
+
+  const handlePromotion = useCallback((promotionType: PieceType) => {
+    setGameState(prev => {
+      if (!prev.pendingPromotion) return prev;
+      
+      const newBoard = prev.board.map(row => [...row]);
+      const pos = prev.pendingPromotion;
+      const piece = newBoard[pos.row][pos.col];
+      
+      if (piece && piece.type === 'pawn') {
+        newBoard[pos.row][pos.col] = {
+          type: promotionType,
+          color: piece.color,
+          hasMoved: true
+        };
+      }
+      
+      const nextPlayer = prev.currentPlayer === 'white' ? 'black' : 'white';
+      const newGameStatus = updateGameStatus(newBoard, nextPlayer);
+      
+      return {
+        ...prev,
+        board: newBoard,
+        currentPlayer: nextPlayer,
+        gameStatus: newGameStatus,
+        pendingPromotion: null
+      };
+    });
+  }, [updateGameStatus]);
 
   const getHint = useCallback(() => {
     setGameState(prev => {
@@ -204,6 +260,7 @@ export const useChessGame = () => {
     moveWarning,
     selectSquare,
     resetGame,
-    getHint
+    getHint,
+    handlePromotion
   };
 };

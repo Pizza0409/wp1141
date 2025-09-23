@@ -45,18 +45,6 @@ const ChessBoard: React.FC<ChessBoardProps> = ({
 
   return (
     <div className="chess-board">
-      <div className="board-coordinates">
-        <div className="file-labels">
-          {['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map(letter => (
-            <div key={letter} className="file-label">{letter}</div>
-          ))}
-        </div>
-        <div className="rank-labels">
-          {[8, 7, 6, 5, 4, 3, 2, 1].map(number => (
-            <div key={number} className="rank-label">{number}</div>
-          ))}
-        </div>
-      </div>
       <div className="board-grid">
         {renderBoard()}
       </div>

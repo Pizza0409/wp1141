@@ -4,7 +4,8 @@ import {
   makeMove, 
   isInCheck, 
   getPieceAt,
-  isValidPosition 
+  isValidPosition,
+  isSquareAttacked
 } from '../utils/chessLogic';
 
 export interface AIMove {
@@ -117,20 +118,6 @@ const getSafetyBonus = (board: Board, move: AIMove, color: Color): number => {
   return isAttacked ? -20 : 5;
 };
 
-const isSquareAttacked = (board: Board, pos: Position, byColor: Color): boolean => {
-  for (let row = 0; row < 8; row++) {
-    for (let col = 0; col < 8; col++) {
-      const piece = getPieceAt(board, { row, col });
-      if (piece && piece.color === byColor) {
-        const moves = getPossibleMoves(board, { row, col });
-        if (moves.some(move => move.row === pos.row && move.col === pos.col)) {
-          return true;
-        }
-      }
-    }
-  }
-  return false;
-};
 
 export const useAI = () => {
   const makeAIMove = (board: Board, color: Color): Promise<Move | null> => {

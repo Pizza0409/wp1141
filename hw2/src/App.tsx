@@ -136,7 +136,6 @@ const App: React.FC = () => {
       <div className="game-container">
         <div className="game-header">
           <h1>國際象棋遊戲</h1>
-          <p>使用 React TypeScript 開發的象棋遊戲</p>
         </div>
         
         <div className="game-content">

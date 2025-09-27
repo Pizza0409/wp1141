@@ -12,6 +12,7 @@ interface GameControlsProps {
   onToggleAI: () => void;
   moveWarning?: string;
   onShowRules: () => void;
+  hasGameStarted: boolean;
 }
 
 const GameControls: React.FC<GameControlsProps> = ({
@@ -24,7 +25,8 @@ const GameControls: React.FC<GameControlsProps> = ({
   isAIMode,
   onToggleAI,
   moveWarning,
-  onShowRules
+  onShowRules,
+  hasGameStarted
 }) => {
   const getStatusMessage = () => {
     switch (gameStatus) {
@@ -110,12 +112,14 @@ const GameControls: React.FC<GameControlsProps> = ({
           className="control-btn primary" 
           onClick={onNewGame}
         >
+          <span>▶️</span>
           新遊戲
         </button>
         <button 
           className="control-btn secondary" 
           onClick={onReset}
         >
+          <span>🔄</span>
           重新開始
         </button>
         <button 
@@ -123,19 +127,24 @@ const GameControls: React.FC<GameControlsProps> = ({
           onClick={onHint}
           disabled={gameStatus !== 'playing'}
         >
+          <span>💡</span>
           提示
         </button>
         <button 
           className={`control-btn ${isAIMode ? 'active' : ''}`} 
           onClick={onToggleAI}
+          disabled={hasGameStarted}
+          title={hasGameStarted ? '遊戲進行中無法切換模式' : ''}
         >
+          <span>{isAIMode ? '🤖' : '👥'}</span>
           {isAIMode ? 'AI 模式' : '雙人模式'}
         </button>
         <button 
           className="control-btn rules-btn" 
           onClick={onShowRules}
         >
-          📖 遊戲規則
+          <span>📖</span>
+          遊戲規則
         </button>
       </div>
     </div>

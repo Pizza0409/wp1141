@@ -49,7 +49,7 @@
   align-items: center;
   padding: 20px 24px;
   border-bottom: 1px solid #e0e0e0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #8E9BAE 0%, #7E8B9E 100%);
   color: white;
 }
 
@@ -104,8 +104,8 @@
 }
 
 .tab-btn.active {
-  color: #667eea;
-  border-bottom-color: #667eea;
+  color: #8E9BAE;
+  border-bottom-color: #8E9BAE;
   background-color: white;
 }
 
@@ -117,9 +117,9 @@
 
 .rules-content h3 {
   margin: 0 0 20px 0;
-  color: #333;
+  color: #2C3E50;
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 /* 棋子移動樣式 */
@@ -153,15 +153,15 @@
 
 .piece-info h4 {
   margin: 0 0 8px 0;
-  color: #333;
+  color: #2C3E50;
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .piece-description {
   margin: 0 0 8px 0;
-  color: #667eea;
-  font-weight: 500;
+  color: #2C3E50;
+  font-weight: 600;
   font-size: 14px;
 }
 
@@ -183,14 +183,14 @@
   padding: 20px;
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
   border-radius: 8px;
-  border-left: 4px solid #667eea;
+  border-left: 4px solid #8E9BAE;
 }
 
 .rule-item h4 {
   margin: 0 0 8px 0;
-  color: #333;
+  color: #2C3E50;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .rule-item p {
@@ -216,9 +216,9 @@
 
 .special-rule-item h4 {
   margin: 0 0 12px 0;
-  color: #667eea;
+  color: #2C3E50;
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .special-rule-item p {

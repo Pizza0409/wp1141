@@ -6,7 +6,7 @@ import GameControls from './components/GameControls';
 import GameRules from './components/GameRules';
 import PromotionModal from './components/PromotionModal';
 import GameOverModal from './components/GameOverModal';
-import { Move, Color, PieceType } from './types/chess';
+import { PieceType } from './types/chess';
 import './App.css';
 
 const App: React.FC = () => {
@@ -77,9 +77,18 @@ const App: React.FC = () => {
   }, [isAIMode, gameState.currentPlayer, getHint]);
 
   const handleToggleAI = useCallback(() => {
+    // 檢查遊戲是否已經開始（有棋子移動過）
+    const hasGameStarted = gameState.moveHistory.length > 0;
+    
+    if (hasGameStarted) {
+      // 如果遊戲已經開始，不允許切換模式
+      alert('遊戲進行中無法切換模式，請先開始新遊戲！');
+      return;
+    }
+    
     setIsAIMode(!isAIMode);
     setIsAITurn(false);
-  }, [isAIMode]);
+  }, [isAIMode, gameState.moveHistory.length]);
 
   const handleShowRules = useCallback(() => {
     setShowRules(true);
@@ -160,6 +169,7 @@ const App: React.FC = () => {
               onToggleAI={handleToggleAI}
               moveWarning={moveWarning}
               onShowRules={handleShowRules}
+              hasGameStarted={gameState.moveHistory.length > 0}
             />
           </div>
         </div>

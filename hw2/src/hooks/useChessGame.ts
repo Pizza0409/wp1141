@@ -121,7 +121,10 @@ export const useChessGame = () => {
           };
         }
         
-        const newCapturedPieces = { ...prev.capturedPieces };
+        const newCapturedPieces = { 
+          white: [...prev.capturedPieces.white], 
+          black: [...prev.capturedPieces.black] 
+        };
         if (capturedPiece) {
           newCapturedPieces[capturedPiece.color].push(capturedPiece);
         }

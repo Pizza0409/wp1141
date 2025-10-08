@@ -1,4 +1,4 @@
-import { Board, Piece, Position, Move, Color, PieceType } from '../types/chess';
+import { Board, Piece, Position, Move, Color } from '../types/chess';
 
 export const createInitialBoard = (): Board => {
   const board: Board = Array(8).fill(null).map(() => Array(8).fill(null));
@@ -433,7 +433,7 @@ const getBasicKingMoves = (board: Board, pos: Position, piece: Piece): Position[
 };
 
 // 簡化版本的兵移動，用於攻擊檢測
-const getBasicPawnMoves = (board: Board, pos: Position, piece: Piece): Position[] => {
+const getBasicPawnMoves = (_board: Board, pos: Position, piece: Piece): Position[] => {
   const moves: Position[] = [];
   const direction = piece.color === 'white' ? -1 : 1;
   

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { GameState, Move, Position, Color, Piece } from '../types/chess';
+import { GameState, Move, Position, Color, Piece, PieceType } from '../types/chess';
 import { 
   createInitialBoard, 
   makeMove, 

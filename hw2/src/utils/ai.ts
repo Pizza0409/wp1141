@@ -4,7 +4,6 @@ import {
   makeMove, 
   isInCheck, 
   getPieceAt,
-  isValidPosition,
   isSquareAttacked
 } from '../utils/chessLogic';
 

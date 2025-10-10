@@ -1,0 +1,157 @@
+import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
+import { CourseDetail, CourseSelection, SearchFilters, SubmissionRecord } from '../types/course';
+import { loadCourseData } from '../utils/csvParser';
+
+// Context 狀態型別
+interface CourseState {
+  courses: CourseDetail[];
+  filteredCourses: CourseDetail[];
+  selectedCourses: CourseSelection[];
+  searchFilters: SearchFilters;
+  submissionRecords: SubmissionRecord[];
+  isLoading: boolean;
+  error: string | null;
+}
+
+// Action 型別
+type CourseAction =
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_COURSES'; payload: CourseDetail[] }
+  | { type: 'SET_FILTERED_COURSES'; payload: CourseDetail[] }
+  | { type: 'UPDATE_SEARCH_FILTERS'; payload: Partial<SearchFilters> }
+  | { type: 'ADD_SELECTED_COURSE'; payload: CourseSelection }
+  | { type: 'REMOVE_SELECTED_COURSE'; payload: string }
+  | { type: 'CLEAR_SELECTED_COURSES' }
+  | { type: 'ADD_SUBMISSION_RECORD'; payload: SubmissionRecord }
+  | { type: 'UPDATE_SUBMISSION_RECORD'; payload: SubmissionRecord };
+
+// 初始狀態
+const initialState: CourseState = {
+  courses: [],
+  filteredCourses: [],
+  selectedCourses: [],
+  searchFilters: {
+    keyword: '',
+    department: '',
+    credit: '',
+    day: '',
+    timeSlot: '',
+    teacher: ''
+  },
+  submissionRecords: [],
+  isLoading: false,
+  error: null
+};
+
+// Reducer
+function courseReducer(state: CourseState, action: CourseAction): CourseState {
+  switch (action.type) {
+    case 'SET_LOADING':
+      return { ...state, isLoading: action.payload };
+    
+    case 'SET_ERROR':
+      return { ...state, error: action.payload, isLoading: false };
+    
+    case 'SET_COURSES':
+      return { ...state, courses: action.payload, filteredCourses: action.payload };
+    
+    case 'SET_FILTERED_COURSES':
+      return { ...state, filteredCourses: action.payload };
+    
+    case 'UPDATE_SEARCH_FILTERS':
+      return { 
+        ...state, 
+        searchFilters: { ...state.searchFilters, ...action.payload }
+      };
+    
+    case 'ADD_SELECTED_COURSE':
+      // 檢查是否已選
+      const isAlreadySelected = state.selectedCourses.some(
+        selection => selection.courseId === action.payload.courseId
+      );
+      
+      if (isAlreadySelected) {
+        return state;
+      }
+      
+      return {
+        ...state,
+        selectedCourses: [...state.selectedCourses, action.payload]
+      };
+    
+    case 'REMOVE_SELECTED_COURSE':
+      return {
+        ...state,
+        selectedCourses: state.selectedCourses.filter(
+          selection => selection.courseId !== action.payload
+        )
+      };
+    
+    case 'CLEAR_SELECTED_COURSES':
+      return { ...state, selectedCourses: [] };
+    
+    case 'ADD_SUBMISSION_RECORD':
+      return {
+        ...state,
+        submissionRecords: [...state.submissionRecords, action.payload]
+      };
+    
+    case 'UPDATE_SUBMISSION_RECORD':
+      return {
+        ...state,
+        submissionRecords: state.submissionRecords.map(record =>
+          record.id === action.payload.id ? action.payload : record
+        )
+      };
+    
+    default:
+      return state;
+  }
+}
+
+// Context
+const CourseContext = createContext<{
+  state: CourseState;
+  dispatch: React.Dispatch<CourseAction>;
+} | null>(null);
+
+// Provider
+export function CourseProvider({ children }: { children: ReactNode }) {
+  const [state, dispatch] = useReducer(courseReducer, initialState);
+
+  // 載入課程資料
+  useEffect(() => {
+    const loadData = async () => {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      dispatch({ type: 'SET_ERROR', payload: null });
+      
+      try {
+        const courses = await loadCourseData();
+        dispatch({ type: 'SET_COURSES', payload: courses });
+      } catch (error) {
+        dispatch({ 
+          type: 'SET_ERROR', 
+          payload: error instanceof Error ? error.message : '載入課程資料失敗'
+        });
+      }
+    };
+
+    loadData();
+  }, []);
+
+  return (
+    <CourseContext.Provider value={{ state, dispatch }}>
+      {children}
+    </CourseContext.Provider>
+  );
+}
+
+// Hook
+export function useCourseContext() {
+  const context = useContext(CourseContext);
+  if (!context) {
+    throw new Error('useCourseContext must be used within a CourseProvider');
+  }
+  return context;
+}

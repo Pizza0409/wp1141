@@ -1,27 +1,31 @@
 import { useMemo, useCallback, useRef, useState, useEffect } from 'react';
-import { CourseDetail, SearchFilters } from '../types/course';
+import { SearchFilters } from '../types/course';
 import { useCourseContext } from '../context/CourseContext';
 
 export function useCourseSearch() {
   const { state, dispatch } = useCourseContext();
-  const [debouncedFilters, setDebouncedFilters] = useState<SearchFilters>(state.searchFilters);
+  const [debouncedFilters, setDebouncedFilters] = useState<SearchFilters>({
+    keyword: '',
+    department: '',
+    credit: '',
+    day: '',
+    timeSlot: '',
+    teacher: ''
+  });
+  const [isSearching, setIsSearching] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // 防抖動更新搜尋條件
-  useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
+  // 手動觸發搜尋
+  const triggerSearch = useCallback(() => {
+    console.log('手動觸發搜尋:', state.searchFilters.keyword);
+    setIsSearching(true);
     
-    searchTimeoutRef.current = setTimeout(() => {
+    // 模擬搜尋延遲
+    setTimeout(() => {
       setDebouncedFilters(state.searchFilters);
+      setIsSearching(false);
+      console.log('搜尋完成:', state.searchFilters.keyword);
     }, 300);
-
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
   }, [state.searchFilters]);
 
   // 搜尋和篩選課程（優化版本）
@@ -123,8 +127,10 @@ export function useCourseSearch() {
   return {
     filteredCourses,
     searchFilters: state.searchFilters, // 返回即時搜尋條件用於 UI 顯示
+    isSearching, // 返回搜尋狀態
     updateSearchFilters,
     resetSearchFilters,
+    triggerSearch, // 手動觸發搜尋
     filterOptions
   };
 }

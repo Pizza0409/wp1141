@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -15,7 +15,8 @@ import {
   Collapse,
   ToggleButton,
   ToggleButtonGroup,
-  Paper
+  Paper,
+  CircularProgress
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -27,6 +28,7 @@ import {
 import { CourseDetail } from '../types/course';
 import { useCourseSearch } from '../hooks/useCourseSearch';
 import { useCourseSelection } from '../hooks/useCourseSelection';
+import { useCourseContext } from '../context/CourseContext';
 import VirtualizedCourseList from './VirtualizedCourseList';
 
 interface CourseBrowserProps {
@@ -37,16 +39,27 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
   const {
     filteredCourses,
     searchFilters,
+    isSearching,
     updateSearchFilters,
     resetSearchFilters,
+    triggerSearch,
     filterOptions
   } = useCourseSearch();
 
   const { addSelectedCourse, isSelected, checkConflicts } = useCourseSelection();
+  const { state } = useCourseContext();
 
   const [expandedCourse, setExpandedCourse] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [inputValue, setInputValue] = useState<string>(''); // 本地輸入狀態
+
+  // 只在重置時同步本地輸入狀態
+  useEffect(() => {
+    if (searchFilters.keyword === '' && inputValue !== '') {
+      setInputValue('');
+    }
+  }, [searchFilters.keyword, inputValue]);
 
   // 課程分組
   const courseCategories = [
@@ -128,18 +141,45 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
       <Card sx={{ mb: 2, boxShadow: 1 }}>
         <CardContent sx={{ p: 2 }}>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={8}>
+            <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
                 size="small"
                 label="搜尋課程"
                 placeholder="輸入課程名稱、代碼、教師..."
-                value={searchFilters.keyword}
-                onChange={(e) => updateSearchFilters({ keyword: e.target.value })}
+                value={inputValue}
+                onChange={(e) => {
+                  // 立即更新輸入框顯示
+                  const value = e.target.value;
+                  console.log('輸入框更新:', value);
+                  setInputValue(value);
+                  
+                  // 只更新搜尋條件，不觸發搜尋
+                  updateSearchFilters({ keyword: value });
+                }}
+                onKeyDown={(e) => {
+                  // 按下 Enter 鍵觸發搜尋
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    triggerSearch();
+                  }
+                }}
                 InputProps={{
                   startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
                 }}
               />
+            </Grid>
+            <Grid item xs={12} md={2}>
+              <Button
+                fullWidth
+                variant="contained"
+                size="small"
+                startIcon={<SearchIcon />}
+                onClick={triggerSearch}
+                disabled={isSearching}
+              >
+                {isSearching ? '搜尋中...' : '搜尋'}
+              </Button>
             </Grid>
             <Grid item xs={12} md={2}>
               <Button
@@ -157,7 +197,10 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
                 fullWidth
                 variant="outlined"
                 size="small"
-                onClick={resetSearchFilters}
+                onClick={() => {
+                  setInputValue(''); // 重置本地輸入狀態
+                  resetSearchFilters();
+                }}
               >
                 重置
               </Button>
@@ -236,25 +279,76 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
 
       {/* 課程列表 */}
       <Box>
-        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-          搜尋結果 ({categoryFilteredCourses.length} 門課程)
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            搜尋結果 ({categoryFilteredCourses.length} 門課程)
+          </Typography>
+          {isSearching && (
+            <Box sx={{ ml: 2, display: 'flex', alignItems: 'center' }}>
+              <CircularProgress size={16} sx={{ mr: 1 }} />
+              <Typography variant="body2" color="text.secondary">
+                搜尋中...
+              </Typography>
+            </Box>
+          )}
+        </Box>
         
-        {categoryFilteredCourses.length === 0 ? (
+        {state.courses.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 4 }}>
+            <CircularProgress size={40} sx={{ mb: 2 }} />
+            <Typography variant="body1" color="text.secondary">
+              正在載入課程資料...
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              請稍候，我們正在為您準備課程資訊
+            </Typography>
+          </Box>
+        ) : categoryFilteredCourses.length === 0 && !isSearching ? (
           <Alert severity="info" sx={{ borderRadius: 2 }}>
             沒有找到符合條件的課程
           </Alert>
         ) : (
-          <VirtualizedCourseList
-            courses={categoryFilteredCourses}
-            isSelected={isSelected}
-            checkConflicts={checkConflicts}
-            expandedCourse={expandedCourse}
-            onCourseSelect={handleCourseSelect}
-            onExpandCourse={handleExpandCourse}
-            getDayName={getDayName}
-            getTimeSlotColor={getTimeSlotColor}
-          />
+          <Box sx={{ position: 'relative' }}>
+            <VirtualizedCourseList
+              courses={categoryFilteredCourses}
+              isSelected={isSelected}
+              checkConflicts={checkConflicts}
+              expandedCourse={expandedCourse}
+              onCourseSelect={handleCourseSelect}
+              onExpandCourse={handleExpandCourse}
+              getDayName={getDayName}
+              getTimeSlotColor={getTimeSlotColor}
+            />
+            
+            {/* 搜尋中的覆蓋層 */}
+            {isSearching && (
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  bgcolor: 'rgba(255, 255, 255, 0.8)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 10,
+                  borderRadius: 2
+                }}
+              >
+                <Box sx={{ textAlign: 'center' }}>
+                  <CircularProgress size={40} sx={{ mb: 2 }} />
+                  <Typography variant="body1" color="text.secondary">
+                    正在搜尋課程...
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    請稍候，我們正在為您篩選最相關的課程
+                  </Typography>
+                </Box>
+              </Box>
+            )}
+          </Box>
         )}
       </Box>
     </Box>

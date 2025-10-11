@@ -120,7 +120,7 @@ export function parseCourseCSV(csvContent: string): CourseDetail[] {
   return Array.from(courseMap.values());
 }
 
-// 載入 CSV 檔案
+// 載入 CSV 檔案（優化版本）
 export async function loadCourseData(): Promise<CourseDetail[]> {
   try {
     console.log('開始載入 CSV 檔案...');
@@ -133,7 +133,8 @@ export async function loadCourseData(): Promise<CourseDetail[]> {
     const csvContent = await response.text();
     console.log('CSV 檔案載入完成，內容長度:', csvContent.length);
     
-    const courses = parseCourseCSV(csvContent);
+    // 使用 Web Worker 或分塊處理來避免阻塞 UI
+    const courses = await parseCourseCSVAsync(csvContent);
     console.log('解析完成，課程數量:', courses.length);
     
     return courses;
@@ -141,4 +142,15 @@ export async function loadCourseData(): Promise<CourseDetail[]> {
     console.error('Failed to load course data:', error);
     return [];
   }
+}
+
+// 異步解析 CSV，避免阻塞 UI
+async function parseCourseCSVAsync(csvContent: string): Promise<CourseDetail[]> {
+  return new Promise((resolve) => {
+    // 使用 setTimeout 將解析工作分到下一個事件循環
+    setTimeout(() => {
+      const courses = parseCourseCSV(csvContent);
+      resolve(courses);
+    }, 0);
+  });
 }

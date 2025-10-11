@@ -45,8 +45,8 @@ export function ScrollToTop({ threshold = 100 }: ScrollToTopProps) {
           sx={{
             position: 'fixed',
             bottom: 24,
-            right: 5,
-            zIndex: 1000,
+            right: 24,
+            zIndex: 9999,
             opacity: 0.8,
             '&:hover': {
               opacity: 1

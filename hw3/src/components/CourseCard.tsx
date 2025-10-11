@@ -44,6 +44,8 @@ const CourseCard = memo(({
         sx={{ 
           border: hasConflicts ? '2px solid #ff9800' : '1px solid #e0e0e0',
           borderRadius: 2,
+          maxWidth: 1200, // 限制最大寬度
+          mx: 'auto', // 居中
           '&:hover': { boxShadow: 2 }
         }}
       >

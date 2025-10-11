@@ -129,6 +129,9 @@ function AppContent() {
           <Typography variant="h6" sx={{ mt: 2 }}>
             載入課程資料中...
           </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            正在解析 {state.courses.length > 0 ? state.courses.length : '大量'} 門課程
+          </Typography>
         </Box>
       </Box>
     );
@@ -176,7 +179,7 @@ function AppContent() {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="xl" sx={{ mt: 2 }}>
+      <Container maxWidth="lg" sx={{ mt: 2 }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs value={tabValue} onChange={handleTabChange} aria-label="選課系統標籤">
             <Tab 

@@ -120,9 +120,15 @@ const CourseContext = createContext<{
 export function CourseProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(courseReducer, initialState);
 
-  // 載入課程資料
+  // 載入課程資料（只載入一次）
   useEffect(() => {
     const loadData = async () => {
+      // 如果已經有資料，就不重新載入
+      if (state.courses.length > 0) {
+        console.log('Context: 課程資料已存在，跳過載入');
+        return;
+      }
+
       dispatch({ type: 'SET_LOADING', payload: true });
       dispatch({ type: 'SET_ERROR', payload: null });
       
@@ -149,7 +155,7 @@ export function CourseProvider({ children }: { children: ReactNode }) {
     };
 
     loadData();
-  }, []);
+  }, [state.courses.length]);
 
   return (
     <CourseContext.Provider value={{ state, dispatch }}>

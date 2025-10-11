@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Box,
   Card,
@@ -11,22 +11,23 @@ import {
   Button,
   Typography,
   Grid,
-  Chip,
-  Tooltip,
-  IconButton,
+  Alert,
   Collapse,
-  Alert
+  ToggleButton,
+  ToggleButtonGroup,
+  Paper
 } from '@mui/material';
 import {
   Search as SearchIcon,
   FilterList as FilterIcon,
-  Add as AddIcon,
-  ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon
+  School as SchoolIcon,
+  Person as PersonIcon,
+  Schedule as ScheduleIcon
 } from '@mui/icons-material';
 import { CourseDetail } from '../types/course';
 import { useCourseSearch } from '../hooks/useCourseSearch';
 import { useCourseSelection } from '../hooks/useCourseSelection';
+import VirtualizedCourseList from './VirtualizedCourseList';
 
 interface CourseBrowserProps {
   onCourseSelect?: (course: CourseDetail) => void;
@@ -45,39 +46,92 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
 
   const [expandedCourse, setExpandedCourse] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  const handleCourseSelect = (course: CourseDetail) => {
+  // 課程分組
+  const courseCategories = [
+    { value: 'all', label: '全部課程', icon: <SchoolIcon /> },
+    { value: 'general', label: '通識課程', icon: <PersonIcon /> },
+    { value: 'freshman', label: '新生課程', icon: <ScheduleIcon /> },
+    { value: 'program', label: '學程課程', icon: <SchoolIcon /> }
+  ];
+
+  // 根據分組篩選課程
+  const getCategoryFilteredCourses = () => {
+    if (selectedCategory === 'all') return filteredCourses;
+    
+    return filteredCourses.filter(course => {
+      switch (selectedCategory) {
+        case 'general':
+          return course.dpt_abbr?.includes('通識') || course.cou_cname?.includes('通識');
+        case 'freshman':
+          return course.year === '1' || course.cou_cname?.includes('新生');
+        case 'program':
+          return course.cou_cname?.includes('學程') || course.cou_cname?.includes('專題');
+        default:
+          return true;
+      }
+    });
+  };
+
+  const handleCourseSelect = useCallback((course: CourseDetail) => {
     addSelectedCourse(course);
     onCourseSelect?.(course);
-  };
+  }, [addSelectedCourse, onCourseSelect]);
 
-  const handleExpandCourse = (courseId: string) => {
+  const handleExpandCourse = useCallback((courseId: string) => {
     setExpandedCourse(expandedCourse === courseId ? null : courseId);
-  };
+  }, [expandedCourse]);
 
-  const getDayName = (day: string) => {
+  const getDayName = useCallback((day: string) => {
     const dayNames = ['', '一', '二', '三', '四', '五', '六', '日'];
     return dayNames[parseInt(day)] || day;
-  };
+  }, []);
 
-  const getTimeSlotColor = (timeSlot: string) => {
+  const getTimeSlotColor = useCallback((timeSlot: string) => {
     const hour = parseInt(timeSlot.split(':')[0]);
     if (hour < 9) return 'default';
     if (hour < 12) return 'primary';
     if (hour < 15) return 'secondary';
     if (hour < 18) return 'success';
     return 'warning';
-  };
+  }, []);
+
+  const categoryFilteredCourses = getCategoryFilteredCourses();
 
   return (
     <Box>
+      {/* 課程分組 */}
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 600 }}>
+          課程分類
+        </Typography>
+        <ToggleButtonGroup
+          value={selectedCategory}
+          exclusive
+          onChange={(_, value) => value && setSelectedCategory(value)}
+          size="small"
+          sx={{ flexWrap: 'wrap' }}
+        >
+          {courseCategories.map(category => (
+            <ToggleButton key={category.value} value={category.value}>
+              {category.icon}
+              <Typography variant="body2" sx={{ ml: 1 }}>
+                {category.label}
+              </Typography>
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+      </Paper>
+
       {/* 搜尋列 */}
-      <Card sx={{ mb: 2 }}>
-        <CardContent>
+      <Card sx={{ mb: 2, boxShadow: 1 }}>
+        <CardContent sx={{ p: 2 }}>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12} md={8}>
               <TextField
                 fullWidth
+                size="small"
                 label="搜尋課程"
                 placeholder="輸入課程名稱、代碼、教師..."
                 value={searchFilters.keyword}
@@ -87,20 +141,22 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
                 }}
               />
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} md={2}>
               <Button
                 fullWidth
                 variant="outlined"
+                size="small"
                 startIcon={<FilterIcon />}
                 onClick={() => setShowFilters(!showFilters)}
               >
-                篩選條件
+                篩選
               </Button>
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} md={2}>
               <Button
                 fullWidth
                 variant="outlined"
+                size="small"
                 onClick={resetSearchFilters}
               >
                 重置
@@ -180,111 +236,25 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
 
       {/* 課程列表 */}
       <Box>
-        <Typography variant="h6" sx={{ mb: 2 }}>
-          搜尋結果 ({filteredCourses.length} 門課程)
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+          搜尋結果 ({categoryFilteredCourses.length} 門課程)
         </Typography>
         
-        {filteredCourses.length === 0 ? (
-          <Alert severity="info">沒有找到符合條件的課程</Alert>
+        {categoryFilteredCourses.length === 0 ? (
+          <Alert severity="info" sx={{ borderRadius: 2 }}>
+            沒有找到符合條件的課程
+          </Alert>
         ) : (
-          <Grid container spacing={2}>
-            {filteredCourses.map((course) => {
-              const conflicts = checkConflicts(course);
-              const hasConflicts = conflicts.length > 0;
-              const isExpanded = expandedCourse === course.id;
-              
-              return (
-                <Grid item xs={12} key={course.id}>
-                  <Card 
-                    sx={{ 
-                      border: hasConflicts ? '2px solid #ff9800' : '1px solid #e0e0e0',
-                      '&:hover': { boxShadow: 2 }
-                    }}
-                  >
-                    <CardContent>
-                      <Grid container spacing={2} alignItems="center">
-                        <Grid item xs={12} md={8}>
-                          <Box>
-                            <Typography variant="h6" component="div">
-                              {course.cou_cname}
-                              {hasConflicts && (
-                                <Chip 
-                                  label="衝堂" 
-                                  color="warning" 
-                                  size="small" 
-                                  sx={{ ml: 1 }}
-                                />
-                              )}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              {course.cou_ename}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              課程代碼: {course.cou_code} | 學分: {course.credit} | 教師: {course.tea_cname}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              系所: {course.dpt_abbr}
-                            </Typography>
-                            
-                            {/* 時間標籤 */}
-                            <Box sx={{ mt: 1 }}>
-                              {course.times.map((time, index) => (
-                                <Chip
-                                  key={index}
-                                  label={`星期${getDayName(time.day)} ${time.startTime}-${time.endTime}`}
-                                  color={getTimeSlotColor(time.startTime) as any}
-                                  size="small"
-                                  sx={{ mr: 1, mb: 1 }}
-                                />
-                              ))}
-                            </Box>
-                          </Box>
-                        </Grid>
-                        
-                        <Grid item xs={12} md={4}>
-                          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                            <Tooltip title="查看詳細資訊">
-                              <IconButton
-                                onClick={() => handleExpandCourse(course.id)}
-                                size="small"
-                              >
-                                {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                              </IconButton>
-                            </Tooltip>
-                            
-                            <Button
-                              variant="contained"
-                              startIcon={<AddIcon />}
-                              onClick={() => handleCourseSelect(course)}
-                              disabled={isSelected(course.id)}
-                              color={hasConflicts ? 'warning' : 'primary'}
-                            >
-                              {isSelected(course.id) ? '已選' : '選課'}
-                            </Button>
-                          </Box>
-                        </Grid>
-                      </Grid>
-                      
-                      {/* 展開的詳細資訊 */}
-                      <Collapse in={isExpanded}>
-                        <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                          <Typography variant="body2" sx={{ whiteSpace: 'pre-line' }}>
-                            {course.description}
-                          </Typography>
-                          
-                          {hasConflicts && (
-                            <Alert severity="warning" sx={{ mt: 2 }}>
-                              此課程與已選課程時間衝突，請確認是否仍要選修
-                            </Alert>
-                          )}
-                        </Box>
-                      </Collapse>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              );
-            })}
-          </Grid>
+          <VirtualizedCourseList
+            courses={categoryFilteredCourses}
+            isSelected={isSelected}
+            checkConflicts={checkConflicts}
+            expandedCourse={expandedCourse}
+            onCourseSelect={handleCourseSelect}
+            onExpandCourse={handleExpandCourse}
+            getDayName={getDayName}
+            getTimeSlotColor={getTimeSlotColor}
+          />
         )}
       </Box>
     </Box>

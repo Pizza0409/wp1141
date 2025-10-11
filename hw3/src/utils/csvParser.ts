@@ -32,31 +32,33 @@ export function parseCourseTimes(course: Course): CourseTime[] {
 export function generateCourseDescription(course: Course): string {
   const parts: string[] = [];
   
-  if (course.cou_cname) {
+  if (course.cou_cname && course.cou_cname.trim()) {
     parts.push(`課程名稱：${course.cou_cname}`);
+  } else if (course.cou_code && course.cou_code.trim()) {
+    parts.push(`課程代碼：${course.cou_code}`);
   }
   
-  if (course.cou_ename) {
+  if (course.cou_ename && course.cou_ename.trim()) {
     parts.push(`英文名稱：${course.cou_ename}`);
   }
   
-  if (course.tea_cname) {
+  if (course.tea_cname && course.tea_cname.trim()) {
     parts.push(`授課教師：${course.tea_cname}`);
   }
   
-  if (course.credit) {
+  if (course.credit && course.credit.trim()) {
     parts.push(`學分數：${course.credit}`);
   }
   
-  if (course.dpt_abbr) {
+  if (course.dpt_abbr && course.dpt_abbr.trim()) {
     parts.push(`開課系所：${course.dpt_abbr}`);
   }
   
-  if (course.pre_course) {
+  if (course.pre_course && course.pre_course.trim()) {
     parts.push(`先修課程：${course.pre_course}`);
   }
   
-  return parts.join('\n');
+  return parts.length > 0 ? parts.join('\n') : '課程資訊不完整';
 }
 
 // 檢查時間衝突
@@ -85,29 +87,56 @@ export function transformCourseData(rawCourse: Course, index: number): CourseDet
   };
 }
 
-// 解析 CSV 檔案
+// 解析 CSV 檔案（修復版本）
 export function parseCourseCSV(csvContent: string): CourseDetail[] {
   const parseResult = Papa.parse<Course>(csvContent, {
     header: true,
     skipEmptyLines: true,
-    transformHeader: (header) => header.trim()
+    transformHeader: (header) => header.trim(),
+    // 移除 worker 和 chunk 設定，避免同步問題
   });
   
   if (parseResult.errors.length > 0) {
     console.error('CSV parsing errors:', parseResult.errors);
   }
   
-  return parseResult.data
-    .filter(course => course.cou_cname && course.cou_cname.trim() !== '')
-    .map((course, index) => transformCourseData(course, index));
+  console.log('CSV parsed, total rows:', parseResult.data.length);
+  
+  // 使用 Map 去重，提升效能
+  const courseMap = new Map<string, CourseDetail>();
+  
+  // 簡化篩選邏輯，先處理所有課程
+  parseResult.data.forEach((course, index) => {
+    const transformedCourse = transformCourseData(course, index);
+    const key = `${course.cou_code}_${course.ser_no}_${index}`;
+    
+    // 避免重複課程
+    if (!courseMap.has(key)) {
+      courseMap.set(key, transformedCourse);
+    }
+  });
+  
+  console.log('Courses after deduplication:', courseMap.size);
+  return Array.from(courseMap.values());
 }
 
 // 載入 CSV 檔案
 export async function loadCourseData(): Promise<CourseDetail[]> {
   try {
+    console.log('開始載入 CSV 檔案...');
     const response = await fetch('/data/hw3-ntucourse-data-1002.csv');
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
     const csvContent = await response.text();
-    return parseCourseCSV(csvContent);
+    console.log('CSV 檔案載入完成，內容長度:', csvContent.length);
+    
+    const courses = parseCourseCSV(csvContent);
+    console.log('解析完成，課程數量:', courses.length);
+    
+    return courses;
   } catch (error) {
     console.error('Failed to load course data:', error);
     return [];

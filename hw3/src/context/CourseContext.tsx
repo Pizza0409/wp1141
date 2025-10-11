@@ -127,9 +127,20 @@ export function CourseProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_ERROR', payload: null });
       
       try {
+        console.log('Context: 開始載入課程資料...');
         const courses = await loadCourseData();
-        dispatch({ type: 'SET_COURSES', payload: courses });
+        console.log('Context: 載入課程資料完成', courses.length);
+        
+        if (courses.length === 0) {
+          dispatch({ 
+            type: 'SET_ERROR', 
+            payload: '未找到任何課程資料，請檢查 CSV 檔案格式'
+          });
+        } else {
+          dispatch({ type: 'SET_COURSES', payload: courses });
+        }
       } catch (error) {
+        console.error('Context: 載入課程資料失敗', error);
         dispatch({ 
           type: 'SET_ERROR', 
           payload: error instanceof Error ? error.message : '載入課程資料失敗'
@@ -155,3 +166,4 @@ export function useCourseContext() {
   }
   return context;
 }
+

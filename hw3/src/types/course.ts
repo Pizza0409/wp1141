@@ -97,3 +97,4 @@ export interface SubmissionRecord {
   status: 'draft' | 'submitted' | 'confirmed';
   note?: string;
 }
+

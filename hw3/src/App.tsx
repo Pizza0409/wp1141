@@ -26,10 +26,12 @@ import { CourseBrowser } from './components/CourseBrowser';
 import { CourseSelection } from './components/CourseSelection';
 import { SubmissionHistory } from './components/SubmissionHistory';
 import { CourseSchedule } from './components/CourseSchedule';
+import { ScrollToTop } from './components/ScrollToTop';
 import { useCourseContext } from './context/CourseContext';
 import { useCSVReload } from './hooks/useCSVReload';
+import { testCSVLoading } from './utils/testCSV';
 
-// 主題設定
+// 主題設定（簡化版本）
 const theme = createTheme({
   palette: {
     primary: {
@@ -38,9 +40,39 @@ const theme = createTheme({
     secondary: {
       main: '#dc004e',
     },
+    background: {
+      default: '#f5f5f5',
+    },
   },
   typography: {
     fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+    h6: {
+      fontWeight: 600,
+    },
+  },
+  components: {
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+        },
+      },
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 6,
+          textTransform: 'none',
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          borderRadius: 4,
+        },
+      },
+    },
   },
 });
 
@@ -75,7 +107,7 @@ function AppContent() {
   const { reload } = useCSVReload();
   const [tabValue, setTabValue] = useState(0);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
@@ -133,6 +165,14 @@ function AppContent() {
               <RefreshIcon />
             </IconButton>
           </Tooltip>
+          <Tooltip title="測試 CSV 載入">
+            <IconButton color="inherit" onClick={async () => {
+              const courses = await testCSVLoading();
+              console.log('測試結果:', courses.length, '門課程');
+            }}>
+              📊
+            </IconButton>
+          </Tooltip>
         </Toolbar>
       </AppBar>
 
@@ -172,6 +212,9 @@ function AppContent() {
           <SubmissionHistory />
         </TabPanel>
       </Container>
+      
+      {/* 回到頂部按鈕 */}
+      <ScrollToTop />
     </Box>
   );
 }

@@ -256,3 +256,4 @@ export function CourseSelection({ onSubmission }: CourseSelectionProps) {
     </Box>
   );
 }
+

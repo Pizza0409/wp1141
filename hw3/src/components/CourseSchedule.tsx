@@ -288,3 +288,4 @@ export function CourseSchedule({ selections }: CourseScheduleProps) {
     </Box>
   );
 }
+

@@ -1,18 +1,37 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback, useRef, useState, useEffect } from 'react';
 import { CourseDetail, SearchFilters } from '../types/course';
 import { useCourseContext } from '../context/CourseContext';
 
 export function useCourseSearch() {
   const { state, dispatch } = useCourseContext();
+  const [debouncedFilters, setDebouncedFilters] = useState<SearchFilters>(state.searchFilters);
+  const searchTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // 搜尋和篩選課程
+  // 防抖動更新搜尋條件
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedFilters(state.searchFilters);
+    }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [state.searchFilters]);
+
+  // 搜尋和篩選課程（優化版本）
   const filteredCourses = useMemo(() => {
-    const { courses, searchFilters } = state;
+    const { courses } = state;
     
     return courses.filter(course => {
       // 關鍵字搜尋
-      if (searchFilters.keyword) {
-        const keyword = searchFilters.keyword.toLowerCase();
+      if (debouncedFilters.keyword) {
+        const keyword = debouncedFilters.keyword.toLowerCase();
         const matchesKeyword = 
           course.cou_cname.toLowerCase().includes(keyword) ||
           course.cou_ename.toLowerCase().includes(keyword) ||
@@ -24,48 +43,48 @@ export function useCourseSearch() {
       }
 
       // 系所篩選
-      if (searchFilters.department) {
-        if (course.dpt_abbr !== searchFilters.department) return false;
+      if (debouncedFilters.department) {
+        if (course.dpt_abbr !== debouncedFilters.department) return false;
       }
 
       // 學分篩選
-      if (searchFilters.credit) {
-        if (course.credit !== searchFilters.credit) return false;
+      if (debouncedFilters.credit) {
+        if (course.credit !== debouncedFilters.credit) return false;
       }
 
       // 星期篩選
-      if (searchFilters.day) {
-        const hasDay = course.times.some(time => time.day === searchFilters.day);
+      if (debouncedFilters.day) {
+        const hasDay = course.times.some(time => time.day === debouncedFilters.day);
         if (!hasDay) return false;
       }
 
       // 時段篩選
-      if (searchFilters.timeSlot) {
+      if (debouncedFilters.timeSlot) {
         const hasTimeSlot = course.times.some(time => {
           const startHour = parseInt(time.startTime.split(':')[0]);
-          const timeSlotNum = parseInt(searchFilters.timeSlot);
+          const timeSlotNum = parseInt(debouncedFilters.timeSlot);
           return startHour === timeSlotNum;
         });
         if (!hasTimeSlot) return false;
       }
 
       // 教師篩選
-      if (searchFilters.teacher) {
-        const teacher = searchFilters.teacher.toLowerCase();
+      if (debouncedFilters.teacher) {
+        const teacher = debouncedFilters.teacher.toLowerCase();
         if (!course.tea_cname.toLowerCase().includes(teacher)) return false;
       }
 
       return true;
     });
-  }, [state.courses, state.searchFilters]);
+  }, [state.courses, debouncedFilters]);
 
-  // 更新搜尋條件
-  const updateSearchFilters = (filters: Partial<SearchFilters>) => {
+  // 立即更新搜尋條件（不防抖動）
+  const updateSearchFilters = useCallback((filters: Partial<SearchFilters>) => {
     dispatch({ type: 'UPDATE_SEARCH_FILTERS', payload: filters });
-  };
+  }, [dispatch]);
 
   // 重置搜尋條件
-  const resetSearchFilters = () => {
+  const resetSearchFilters = useCallback(() => {
     dispatch({ 
       type: 'UPDATE_SEARCH_FILTERS', 
       payload: {
@@ -77,7 +96,7 @@ export function useCourseSearch() {
         teacher: ''
       }
     });
-  };
+  }, [dispatch]);
 
   // 獲取可用的篩選選項
   const filterOptions = useMemo(() => {
@@ -103,7 +122,7 @@ export function useCourseSearch() {
 
   return {
     filteredCourses,
-    searchFilters: state.searchFilters,
+    searchFilters: state.searchFilters, // 返回即時搜尋條件用於 UI 顯示
     updateSearchFilters,
     resetSearchFilters,
     filterOptions

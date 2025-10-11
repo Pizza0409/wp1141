@@ -147,10 +147,22 @@ export async function loadCourseData(): Promise<CourseDetail[]> {
 // 異步解析 CSV，避免阻塞 UI
 async function parseCourseCSVAsync(csvContent: string): Promise<CourseDetail[]> {
   return new Promise((resolve) => {
-    // 使用 setTimeout 將解析工作分到下一個事件循環
-    setTimeout(() => {
-      const courses = parseCourseCSV(csvContent);
-      resolve(courses);
-    }, 0);
+    // 使用 requestIdleCallback 或 setTimeout 將解析工作分到空閒時間
+    const processChunk = () => {
+      try {
+        const courses = parseCourseCSV(csvContent);
+        resolve(courses);
+      } catch (error) {
+        console.error('CSV 解析錯誤:', error);
+        resolve([]);
+      }
+    };
+
+    // 優先使用 requestIdleCallback，否則使用 setTimeout
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(processChunk, { timeout: 5000 });
+    } else {
+      setTimeout(processChunk, 0);
+    }
   });
 }

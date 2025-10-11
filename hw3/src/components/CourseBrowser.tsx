@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Box,
   Card,
@@ -52,14 +52,6 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
   const [expandedCourse, setExpandedCourse] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [inputValue, setInputValue] = useState<string>(''); // 本地輸入狀態
-
-  // 只在重置時同步本地輸入狀態
-  useEffect(() => {
-    if (searchFilters.keyword === '' && inputValue !== '') {
-      setInputValue('');
-    }
-  }, [searchFilters.keyword, inputValue]);
 
   // 課程分組
   const courseCategories = [
@@ -147,18 +139,13 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
                 size="small"
                 label="搜尋課程"
                 placeholder="輸入課程名稱、代碼、教師..."
-                value={inputValue}
+                value={searchFilters.keyword}
                 onChange={(e) => {
-                  // 立即更新輸入框顯示
-                  const value = e.target.value;
-                  console.log('輸入框更新:', value);
-                  setInputValue(value);
-                  
-                  // 只更新搜尋條件，不觸發搜尋
-                  updateSearchFilters({ keyword: value });
+                  // 立即更新搜尋條件，自動觸發防抖動搜尋
+                  updateSearchFilters({ keyword: e.target.value });
                 }}
                 onKeyDown={(e) => {
-                  // 按下 Enter 鍵觸發搜尋
+                  // 按下 Enter 鍵立即觸發搜尋
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     triggerSearch();
@@ -198,7 +185,6 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
                 variant="outlined"
                 size="small"
                 onClick={() => {
-                  setInputValue(''); // 重置本地輸入狀態
                   resetSearchFilters();
                 }}
               >

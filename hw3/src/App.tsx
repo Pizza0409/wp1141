@@ -130,7 +130,10 @@ function AppContent() {
             載入課程資料中...
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            正在解析 {state.courses.length > 0 ? state.courses.length : '大量'} 門課程
+            正在解析超過 10,000 門課程，請稍候...
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            這可能需要幾秒鐘時間
           </Typography>
         </Box>
       </Box>

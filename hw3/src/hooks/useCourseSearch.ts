@@ -15,17 +15,44 @@ export function useCourseSearch() {
   const [isSearching, setIsSearching] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout>();
 
+  // 自動防抖動搜尋
+  useEffect(() => {
+    // 清除之前的計時器
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // 如果關鍵字為空，立即搜尋
+    if (!state.searchFilters.keyword.trim()) {
+      setDebouncedFilters(state.searchFilters);
+      return;
+    }
+
+    // 設置新的計時器
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedFilters(state.searchFilters);
+    }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [state.searchFilters]);
+
   // 手動觸發搜尋
   const triggerSearch = useCallback(() => {
     console.log('手動觸發搜尋:', state.searchFilters.keyword);
     setIsSearching(true);
     
-    // 模擬搜尋延遲
+    // 立即更新搜尋條件
+    setDebouncedFilters(state.searchFilters);
+    
+    // 短暫延遲後結束搜尋狀態
     setTimeout(() => {
-      setDebouncedFilters(state.searchFilters);
       setIsSearching(false);
       console.log('搜尋完成:', state.searchFilters.keyword);
-    }, 300);
+    }, 100);
   }, [state.searchFilters]);
 
   // 搜尋和篩選課程（優化版本）

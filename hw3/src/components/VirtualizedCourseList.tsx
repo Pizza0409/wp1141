@@ -1,5 +1,6 @@
 import { memo, useState, useEffect, useRef, useCallback } from 'react';
-import { Box, Typography, Grid } from '@mui/material';
+import { Box, Typography, Grid, Fab } from '@mui/material';
+import { KeyboardArrowUp as KeyboardArrowUpIcon } from '@mui/icons-material';
 import { CourseDetail } from '../types/course';
 import CourseCard from './CourseCard';
 
@@ -25,6 +26,7 @@ const VirtualizedCourseList = memo(({
   getTimeSlotColor
 }: VirtualizedCourseListProps) => {
   const [visibleRange, setVisibleRange] = useState({ start: 0, end: 20 });
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const itemHeight = 200; // 每個課程卡片的高度
   const containerHeight = 600; // 容器高度
@@ -42,6 +44,9 @@ const VirtualizedCourseList = memo(({
     );
 
     setVisibleRange({ start: Math.max(0, start - overscan), end });
+    
+    // 控制回到頂部按鈕顯示
+    setShowScrollToTop(scrollTop > 200);
   }, [courses.length, itemHeight, containerHeight, overscan]);
 
   // 滾動事件處理
@@ -60,6 +65,16 @@ const VirtualizedCourseList = memo(({
       container.removeEventListener('scroll', handleScroll);
     };
   }, [calculateVisibleRange]);
+
+  // 回到頂部功能
+  const scrollToTop = useCallback(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    }
+  }, []);
 
   if (courses.length === 0) {
     return (
@@ -131,6 +146,23 @@ const VirtualizedCourseList = memo(({
           </Grid>
         </Box>
       </Box>
+      
+      {/* 回到頂部按鈕 */}
+      {showScrollToTop && (
+        <Fab
+          size="small"
+          color="primary"
+          onClick={scrollToTop}
+          sx={{
+            position: 'absolute',
+            bottom: 16,
+            right: 16,
+            zIndex: 1000
+          }}
+        >
+          <KeyboardArrowUpIcon />
+        </Fab>
+      )}
     </Box>
   );
 });

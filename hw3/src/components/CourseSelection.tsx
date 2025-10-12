@@ -18,7 +18,6 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemSecondaryAction,
   Divider
 } from '@mui/material';
 import {
@@ -29,7 +28,6 @@ import {
   LocationOn as LocationIcon,
   Info as InfoIcon
 } from '@mui/icons-material';
-import { CourseSelection as CourseSelectionType } from '../types/course';
 import { useCourseSelection } from '../hooks/useCourseSelection';
 
 interface CourseSelectionProps {
@@ -42,7 +40,8 @@ export function CourseSelection({ onSubmission }: CourseSelectionProps) {
     removeSelectedCourse,
     clearSelectedCourses,
     totalCredits,
-    submitSelection
+    submitSelection,
+    getLatestSubmission
   } = useCourseSelection();
 
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
@@ -83,15 +82,17 @@ export function CourseSelection({ onSubmission }: CourseSelectionProps) {
     }
   };
 
+  const latestSubmission = getLatestSubmission();
+
   return (
     <Box>
-      {/* 選課統計 */}
+      {/* 預選課程統計 */}
       <Card sx={{ mb: 2 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={6}>
-              <Typography variant="h6">
-                已選課程 ({selectedCourses.length} 門)
+              <Typography variant="h6" color="primary">
+                預選課程 ({selectedCourses.length} 門)
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 總學分: {totalCredits} 學分
@@ -119,6 +120,36 @@ export function CourseSelection({ onSubmission }: CourseSelectionProps) {
           </Grid>
         </CardContent>
       </Card>
+
+      {/* 已選課程統計 */}
+      {latestSubmission && (
+        <Card sx={{ mb: 2 }}>
+          <CardContent>
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} md={6}>
+                <Typography variant="h6" color="success.main">
+                  已選課程 ({latestSubmission.selections.length} 門)
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  總學分: {latestSubmission.selections.reduce((total, s) => total + parseInt(s.course.credit), 0)} 學分
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  送出時間: {latestSubmission.submittedAt.toLocaleString()}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                  <Chip
+                    label={latestSubmission.status === 'confirmed' ? '已確認' : '已送出'}
+                    color={latestSubmission.status === 'confirmed' ? 'success' : 'primary'}
+                    variant="outlined"
+                  />
+                </Box>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 選課列表 */}
       {selectedCourses.length === 0 ? (

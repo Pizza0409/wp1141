@@ -42,7 +42,6 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
     isSearching,
     updateSearchFilters,
     resetSearchFilters,
-    triggerSearch,
     filterOptions
   } = useCourseSearch();
 
@@ -68,7 +67,48 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
     return filteredCourses.filter(course => {
       switch (selectedCategory) {
         case 'general':
-          return course.dpt_abbr?.includes('通識') || course.cou_cname?.includes('通識');
+          // 使用 mark 欄位識別通識課程
+          return course.mark?.includes('通識') ||
+                 course.mark?.includes('A1') ||
+                 course.mark?.includes('A2') ||
+                 course.mark?.includes('A3') ||
+                 course.mark?.includes('A4') ||
+                 course.mark?.includes('A5') ||
+                 course.mark?.includes('A6') ||
+                 course.mark?.includes('A7') ||
+                 course.mark?.includes('A8') ||
+                 course.mark?.includes('A9') ||
+                 course.mark?.includes('B1') ||
+                 course.mark?.includes('B2') ||
+                 course.mark?.includes('B3') ||
+                 course.mark?.includes('B4') ||
+                 course.mark?.includes('B5') ||
+                 course.mark?.includes('B6') ||
+                 course.mark?.includes('B7') ||
+                 course.mark?.includes('B8') ||
+                 course.mark?.includes('B9') ||
+                 course.mark?.includes('C1') ||
+                 course.mark?.includes('C2') ||
+                 course.mark?.includes('C3') ||
+                 course.mark?.includes('C4') ||
+                 course.mark?.includes('C5') ||
+                 course.mark?.includes('C6') ||
+                 course.mark?.includes('C7') ||
+                 course.mark?.includes('C8') ||
+                 course.mark?.includes('C9') ||
+                 course.mark?.includes('D1') ||
+                 course.mark?.includes('D2') ||
+                 course.mark?.includes('D3') ||
+                 course.mark?.includes('D4') ||
+                 course.mark?.includes('D5') ||
+                 course.mark?.includes('D6') ||
+                 course.mark?.includes('D7') ||
+                 course.mark?.includes('D8') ||
+                 course.mark?.includes('D9') ||
+                 // 備用識別方式
+                 course.dpt_abbr?.includes('通識') || 
+                 course.cou_cname?.includes('通識') ||
+                 course.co_gmark?.includes('通識');
         case 'freshman':
           return course.year === '1' || course.cou_cname?.includes('新生');
         case 'program':
@@ -144,29 +184,10 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
                   // 立即更新搜尋條件，自動觸發防抖動搜尋
                   updateSearchFilters({ keyword: e.target.value });
                 }}
-                onKeyDown={(e) => {
-                  // 按下 Enter 鍵立即觸發搜尋
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    triggerSearch();
-                  }
-                }}
                 InputProps={{
                   startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
                 }}
               />
-            </Grid>
-            <Grid item xs={12} md={2}>
-              <Button
-                fullWidth
-                variant="contained"
-                size="small"
-                startIcon={<SearchIcon />}
-                onClick={triggerSearch}
-                disabled={isSearching}
-              >
-                {isSearching ? '搜尋中...' : '搜尋'}
-              </Button>
             </Grid>
             <Grid item xs={12} md={2}>
               <Button

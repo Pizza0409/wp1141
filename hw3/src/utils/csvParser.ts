@@ -5,22 +5,57 @@ import { Course, CourseDetail, CourseTime } from '../types/course';
 export function parseCourseTimes(course: Course): CourseTime[] {
   const times: CourseTime[] = [];
   
-  // 解析六個時間段
+  // 解析六個時間段 (st1 day1, st2 day2, ..., st6 day6)
   for (let i = 1; i <= 6; i++) {
     const day = course[`day${i}` as keyof Course] as string;
     const startTime = course[`st${i}` as keyof Course] as string;
     const classroom = course[`clsrom_${i}` as keyof Course] as string;
     
-    if (day && startTime && day !== '' && startTime !== '') {
-      // 計算結束時間 (假設每堂課2小時)
-      const startHour = parseInt(startTime);
-      const endHour = startHour + 2;
+    if (day && day !== '') {
+      // day 欄位格式：數字組合表示節次
+      // 例如：day1="567" 表示第5、6、7節
+      //       day2="34" 表示第3、4節
+      //       day3="12" 表示第1、2節
       
-      times.push({
-        day,
-        startTime: `${startHour.toString().padStart(2, '0')}:00`,
-        endTime: `${endHour.toString().padStart(2, '0')}:00`,
-        classroom: classroom || '未指定'
+      // 解析節次 (day 欄位中的每個數字)
+      const periods = day.split('').map(p => {
+        // 處理特殊字符
+        if (p === 'A') return 10; // A = 第10節
+        if (p === 'B') return 11; // B = 第11節
+        if (p === '@') return null; // 跳過無效字符
+        return parseInt(p);
+      }).filter(p => p !== null && p > 0) as number[];
+      
+      // 為每個節次創建時間段
+      periods.forEach(period => {
+        let startHour: number;
+        let endHour: number;
+        
+        // 處理特殊節次
+        if (period === 10) { // A = 第10節
+          startHour = 8 + (10 - 1) * 1; // 第10節 = 17:00 (1小時制)
+          endHour = startHour + 1;
+        } else if (period === 11) { // B = 第11節
+          startHour = 8 + (11 - 1) * 1; // 第11節 = 18:00 (1小時制)
+          endHour = startHour + 1;
+        } else if (period >= 10) { // 其他特殊節次
+          startHour = 8 + (period - 1) * 1; // 1小時制
+          endHour = startHour + 1;
+        } else {
+          // 一般節次 (1-9節，每節課1小時)
+          startHour = 8 + (period - 1) * 1; // 第1節=8:00, 第2節=9:00, 第3節=10:00...
+          endHour = startHour + 1;
+        }
+        
+        // 確保時間在合理範圍內
+        if (startHour >= 8 && startHour <= 22) {
+          times.push({
+            day: i.toString(), // 使用時間段編號作為星期幾 (1-6)
+            startTime: `${startHour.toString().padStart(2, '0')}:00`,
+            endTime: `${endHour.toString().padStart(2, '0')}:00`,
+            classroom: classroom || '未指定'
+          });
+        }
       });
     }
   }

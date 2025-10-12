@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   Box,
   Card,
@@ -6,7 +6,6 @@ import {
   Typography,
   Grid,
   Chip,
-  Tooltip,
   Alert,
   Table,
   TableBody,
@@ -14,42 +13,46 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper
+  Paper,
+  Tooltip
 } from '@mui/material';
 import {
-  Schedule as ScheduleIcon,
-  School as SchoolIcon,
-  Person as PersonIcon,
-  LocationOn as LocationIcon,
   Warning as WarningIcon
 } from '@mui/icons-material';
 import { CourseSelection } from '../types/course';
-import { useCourseSelection } from '../hooks/useCourseSelection';
 
 interface CourseScheduleProps {
-  selections: CourseSelection[];
+  preSelectedCourses?: CourseSelection[];
+  confirmedCourses?: CourseSelection[];
+  selections?: CourseSelection[]; // 向後兼容
 }
 
-export function CourseSchedule({ selections }: CourseScheduleProps) {
-  const { getConflictingCourses } = useCourseSelection();
+export function CourseSchedule({ 
+  preSelectedCourses = [], 
+  confirmedCourses = [], 
+  selections = [] 
+}: CourseScheduleProps) {
+  // 向後兼容：如果只傳入 selections，則作為預選課程
+  const actualPreSelected = selections.length > 0 ? selections : preSelectedCourses;
 
   // 生成課表
   const schedule = useMemo(() => {
     const days = ['一', '二', '三', '四', '五', '六', '日'];
     const timeSlots = Array.from({ length: 14 }, (_, i) => i + 8); // 8:00-21:00
     
-    const scheduleData: { [key: string]: { [key: string]: CourseSelection | null } } = {};
+    const scheduleData: { [key: string]: { [key: string]: CourseSelection[] } } = {};
     
     // 初始化課表
     days.forEach(day => {
       scheduleData[day] = {};
       timeSlots.forEach(slot => {
-        scheduleData[day][slot.toString()] = null;
+        scheduleData[day][slot.toString()] = [];
       });
     });
     
-    // 填入課程
-    selections.forEach(selection => {
+    // 填入所有課程（預選和已選）
+    const allCourses = [...actualPreSelected, ...confirmedCourses];
+    allCourses.forEach(selection => {
       selection.course.times.forEach(time => {
         const dayIndex = parseInt(time.day) - 1;
         if (dayIndex >= 0 && dayIndex < days.length) {
@@ -59,8 +62,14 @@ export function CourseSchedule({ selections }: CourseScheduleProps) {
           
           // 填入課程時間段
           for (let hour = startHour; hour < endHour; hour++) {
-            if (scheduleData[day] && scheduleData[day][hour.toString()] === null) {
-              scheduleData[day][hour.toString()] = selection;
+            if (scheduleData[day] && scheduleData[day][hour.toString()]) {
+              // 避免重複添加同一課程
+              const exists = scheduleData[day][hour.toString()].some(course => 
+                course.courseId === selection.courseId
+              );
+              if (!exists) {
+                scheduleData[day][hour.toString()].push(selection);
+              }
             }
           }
         }
@@ -68,7 +77,7 @@ export function CourseSchedule({ selections }: CourseScheduleProps) {
     });
     
     return { days, timeSlots, scheduleData };
-  }, [selections]);
+  }, [actualPreSelected, confirmedCourses]);
 
   // 檢查衝突
   const conflicts = useMemo(() => {
@@ -77,10 +86,13 @@ export function CourseSchedule({ selections }: CourseScheduleProps) {
       course2: CourseSelection;
       day: string;
       time: string;
+      type: 'pre-pre' | 'pre-confirmed' | 'confirmed-confirmed';
     }> = [];
     
-    selections.forEach(selection1 => {
-      selections.forEach(selection2 => {
+    const allCourses = [...actualPreSelected, ...confirmedCourses];
+    
+    allCourses.forEach(selection1 => {
+      allCourses.forEach(selection2 => {
         if (selection1.courseId !== selection2.courseId) {
           selection1.course.times.forEach(time1 => {
             selection2.course.times.forEach(time2 => {
@@ -95,11 +107,21 @@ export function CourseSchedule({ selections }: CourseScheduleProps) {
                   const dayName = ['一', '二', '三', '四', '五', '六', '日'][parseInt(time1.day) - 1];
                   const conflictTime = `${Math.max(start1, start2)}:00-${Math.min(end1, end2)}:00`;
                   
+                  // 判斷衝突類型
+                  const isPre1 = actualPreSelected.includes(selection1);
+                  const isPre2 = actualPreSelected.includes(selection2);
+                  let type: 'pre-pre' | 'pre-confirmed' | 'confirmed-confirmed';
+                  
+                  if (isPre1 && isPre2) type = 'pre-pre';
+                  else if (isPre1 || isPre2) type = 'pre-confirmed';
+                  else type = 'confirmed-confirmed';
+                  
                   conflictList.push({
                     course1: selection1,
                     course2: selection2,
                     day: dayName,
-                    time: conflictTime
+                    time: conflictTime,
+                    type
                   });
                 }
               }
@@ -110,7 +132,7 @@ export function CourseSchedule({ selections }: CourseScheduleProps) {
     });
     
     return conflictList;
-  }, [selections]);
+  }, [actualPreSelected, confirmedCourses]);
 
   const getTimeSlotColor = (timeSlot: number) => {
     if (timeSlot < 9) return 'default';
@@ -120,15 +142,6 @@ export function CourseSchedule({ selections }: CourseScheduleProps) {
     return 'warning';
   };
 
-  const getCourseColor = (selection: CourseSelection) => {
-    // 根據課程代碼生成顏色
-    const hash = selection.course.cou_code.split('').reduce((a, b) => {
-      a = ((a << 5) - a) + b.charCodeAt(0);
-      return a & a;
-    }, 0);
-    const colors = ['primary', 'secondary', 'success', 'info', 'warning', 'error'];
-    return colors[Math.abs(hash) % colors.length];
-  };
 
   return (
     <Box>
@@ -176,50 +189,68 @@ export function CourseSchedule({ selections }: CourseScheduleProps) {
                       />
                     </TableCell>
                     {schedule.days.map(day => {
-                      const course = schedule.scheduleData[day][timeSlot.toString()];
+                      const courses = schedule.scheduleData[day][timeSlot.toString()];
+                      
                       return (
                         <TableCell key={day} align="center">
-                          {course ? (
-                            <Tooltip
-                              title={
-                                <Box>
-                                  <Typography variant="subtitle2">
-                                    {course.course.cou_cname}
-                                  </Typography>
-                                  <Typography variant="body2">
-                                    {course.course.cou_ename}
-                                  </Typography>
-                                  <Typography variant="body2">
-                                    教師: {course.course.tea_cname}
-                                  </Typography>
-                                  <Typography variant="body2">
-                                    學分: {course.course.credit}
-                                  </Typography>
-                                  <Typography variant="body2">
-                                    教室: {course.course.times.find(t => 
-                                      parseInt(t.startTime.split(':')[0]) === timeSlot
-                                    )?.classroom || '未指定'}
-                                  </Typography>
-                                </Box>
-                              }
-                              arrow
-                            >
-                              <Chip
-                                label={course.course.cou_cname}
-                                color={getCourseColor(course) as any}
-                                size="small"
-                                sx={{ 
-                                  maxWidth: 100,
-                                  '& .MuiChip-label': {
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis'
-                                  }
-                                }}
-                              />
-                            </Tooltip>
-                          ) : (
-                            <Box sx={{ height: 24 }} />
-                          )}
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                            {courses.length > 0 ? (
+                              courses.map((selection, index) => {
+                                const isConfirmed = confirmedCourses.includes(selection);
+                                const hasConflict = courses.length > 1;
+                                
+                                return (
+                                  <Tooltip
+                                    key={`${selection.courseId}-${index}`}
+                                    title={
+                                      <Box>
+                                        <Typography variant="subtitle2" color={isConfirmed ? "success.main" : "primary.main"}>
+                                          [{isConfirmed ? "已選" : "預選"}] {selection.course.cou_cname}
+                                        </Typography>
+                                        <Typography variant="body2">
+                                          {selection.course.cou_ename}
+                                        </Typography>
+                                        <Typography variant="body2">
+                                          教師: {selection.course.tea_cname}
+                                        </Typography>
+                                        <Typography variant="body2">
+                                          學分: {selection.course.credit}
+                                        </Typography>
+                                        <Typography variant="body2">
+                                          教室: {selection.course.times.find(t => 
+                                            parseInt(t.startTime.split(':')[0]) === timeSlot
+                                          )?.classroom || '未指定'}
+                                        </Typography>
+                                        {hasConflict && (
+                                          <Typography variant="body2" color="error.main" sx={{ mt: 1 }}>
+                                            ⚠️ 與其他課程衝堂
+                                          </Typography>
+                                        )}
+                                      </Box>
+                                    }
+                                    arrow
+                                  >
+                                    <Chip
+                                      label={`[${isConfirmed ? "已選" : "預選"}] ${selection.course.cou_cname}`}
+                                      color={hasConflict ? "error" : (isConfirmed ? "success" : "primary")}
+                                      size="small"
+                                      variant={hasConflict ? "filled" : (isConfirmed ? "filled" : "outlined")}
+                                      sx={{ 
+                                        maxWidth: 100,
+                                        fontSize: '0.7rem',
+                                        '& .MuiChip-label': {
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis'
+                                        }
+                                      }}
+                                    />
+                                  </Tooltip>
+                                );
+                              })
+                            ) : (
+                              <Box sx={{ height: 24 }} />
+                            )}
+                          </Box>
                         </TableCell>
                       );
                     })}
@@ -245,7 +276,7 @@ export function CourseSchedule({ selections }: CourseScheduleProps) {
                   {selections.length}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  已選課程
+                  預選課程
                 </Typography>
               </Box>
             </Grid>

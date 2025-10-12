@@ -83,7 +83,7 @@ export function useCourseSelection() {
       id: `submission_${Date.now()}`,
       selections: [...state.selectedCourses],
       submittedAt: new Date(),
-      status: 'submitted',
+      status: 'confirmed', // 送出後直接設為已確認
       note
     };
 

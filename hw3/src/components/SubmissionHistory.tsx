@@ -7,8 +7,6 @@ import {
   Button,
   Grid,
   Chip,
-  IconButton,
-  Tooltip,
   Alert,
   Dialog,
   DialogTitle,
@@ -18,7 +16,6 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemSecondaryAction,
   Divider,
   Accordion,
   AccordionSummary,
@@ -29,15 +26,14 @@ import {
   School as SchoolIcon,
   Person as PersonIcon,
   LocationOn as LocationIcon,
-  Info as InfoIcon,
   CheckCircle as CheckCircleIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon,
   ExpandMore as ExpandMoreIcon,
   History as HistoryIcon
 } from '@mui/icons-material';
 import { SubmissionRecord } from '../types/course';
 import { useCourseSelection } from '../hooks/useCourseSelection';
+import { CourseSchedule } from './CourseSchedule';
 
 interface SubmissionHistoryProps {
   onModify?: (record: SubmissionRecord) => void;
@@ -47,13 +43,11 @@ export function SubmissionHistory({ onModify }: SubmissionHistoryProps) {
   const {
     getSubmissionRecords,
     canModifySubmission,
-    modifySubmission,
-    confirmSubmission
+    modifySubmission
   } = useCourseSelection();
 
   const [selectedRecord, setSelectedRecord] = useState<SubmissionRecord | null>(null);
   const [showModifyDialog, setShowModifyDialog] = useState(false);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [modificationNote, setModificationNote] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -111,19 +105,6 @@ export function SubmissionHistory({ onModify }: SubmissionHistoryProps) {
     }
   };
 
-  const handleConfirm = async () => {
-    if (!selectedRecord) return;
-    
-    setIsProcessing(true);
-    try {
-      await confirmSubmission(selectedRecord.id);
-      setShowConfirmDialog(false);
-    } catch (error) {
-      console.error('確認失敗:', error);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
 
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat('zh-TW', {
@@ -251,6 +232,14 @@ export function SubmissionHistory({ onModify }: SubmissionHistoryProps) {
                         </Box>
                       )}
                       
+                      {/* 課程時間表 */}
+                      <Box sx={{ mt: 3 }}>
+                        <Typography variant="h6" sx={{ mb: 2 }}>
+                          課程時間表
+                        </Typography>
+                        <CourseSchedule selections={record.selections} />
+                      </Box>
+                      
                       {/* 操作按鈕 */}
                       <Box sx={{ mt: 2, display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
                         {canModifySubmission(record.id) && (
@@ -267,17 +256,13 @@ export function SubmissionHistory({ onModify }: SubmissionHistoryProps) {
                           </Button>
                         )}
                         
-                        {record.status === 'submitted' && (
-                          <Button
-                            variant="contained"
-                            startIcon={<CheckCircleIcon />}
-                            onClick={() => {
-                              setSelectedRecord(record);
-                              setShowConfirmDialog(true);
-                            }}
-                          >
-                            確認
-                          </Button>
+                        {record.status === 'confirmed' && (
+                          <Chip
+                            label="已確認"
+                            color="success"
+                            variant="filled"
+                            icon={<CheckCircleIcon />}
+                          />
                         )}
                       </Box>
                     </Box>
@@ -320,38 +305,6 @@ export function SubmissionHistory({ onModify }: SubmissionHistoryProps) {
         </DialogActions>
       </Dialog>
 
-      {/* 確認對話框 */}
-      <Dialog open={showConfirmDialog} onClose={() => setShowConfirmDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>確認送出記錄</DialogTitle>
-        <DialogContent>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            確認後此記錄將無法修改，請確認選課內容無誤。
-          </Alert>
-          
-          <Typography variant="body2">
-            記錄 ID: {selectedRecord?.id}
-          </Typography>
-          <Typography variant="body2">
-            送出時間: {selectedRecord ? formatDate(selectedRecord.submittedAt) : ''}
-          </Typography>
-          <Typography variant="body2">
-            課程數量: {selectedRecord?.selections.length} 門
-          </Typography>
-          <Typography variant="body2">
-            總學分: {selectedRecord?.selections.reduce((total, s) => total + parseInt(s.course.credit), 0)} 學分
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowConfirmDialog(false)}>取消</Button>
-          <Button
-            onClick={handleConfirm}
-            variant="contained"
-            disabled={isProcessing}
-          >
-            {isProcessing ? '處理中...' : '確認'}
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 }

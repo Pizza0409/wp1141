@@ -29,7 +29,7 @@ import { CourseSchedule } from './components/CourseSchedule';
 import { ScrollToTop } from './components/ScrollToTop';
 import { useCourseContext } from './context/CourseContext';
 import { useCSVReload } from './hooks/useCSVReload';
-import { testCSVLoading } from './utils/testCSV';
+import { useCourseSelection } from './hooks/useCourseSelection';
 
 // 主題設定（簡化版本）
 const theme = createTheme({
@@ -105,6 +105,7 @@ function TabPanel(props: TabPanelProps) {
 function AppContent() {
   const { state } = useCourseContext();
   const { reload } = useCSVReload();
+  const { getLatestSubmission } = useCourseSelection();
   const [tabValue, setTabValue] = useState(0);
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
@@ -171,14 +172,6 @@ function AppContent() {
               <RefreshIcon />
             </IconButton>
           </Tooltip>
-          <Tooltip title="測試 CSV 載入">
-            <IconButton color="inherit" onClick={async () => {
-              const courses = await testCSVLoading();
-              console.log('測試結果:', courses.length, '門課程');
-            }}>
-              📊
-            </IconButton>
-          </Tooltip>
         </Toolbar>
       </AppBar>
 
@@ -211,7 +204,10 @@ function AppContent() {
           <Box sx={{ mb: 3 }}>
             <CourseSelection onSubmission={handleSubmission} />
           </Box>
-          <CourseSchedule selections={state.selectedCourses} />
+          <CourseSchedule 
+            preSelectedCourses={state.selectedCourses}
+            confirmedCourses={getLatestSubmission()?.selections || []}
+          />
         </TabPanel>
 
         <TabPanel value={tabValue} index={2}>

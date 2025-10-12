@@ -273,21 +273,13 @@ export function CourseSchedule({
             <Grid item xs={12} sm={6} md={3}>
               <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="h4" color="primary">
-                  {selections.length}
+                  {actualPreSelected.length}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   預選課程
                 </Typography>
-              </Box>
-            </Grid>
-            
-            <Grid item xs={12} sm={6} md={3}>
-              <Box sx={{ textAlign: 'center' }}>
-                <Typography variant="h4" color="secondary">
-                  {selections.reduce((total, s) => total + parseInt(s.course.credit), 0)}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  總學分
+                <Typography variant="caption" color="text.secondary">
+                  {actualPreSelected.reduce((total, s) => total + parseInt(s.course.credit), 0)} 學分
                 </Typography>
               </Box>
             </Grid>
@@ -295,10 +287,27 @@ export function CourseSchedule({
             <Grid item xs={12} sm={6} md={3}>
               <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="h4" color="success.main">
-                  {new Set(selections.map(s => s.course.dpt_abbr)).size}
+                  {confirmedCourses.reduce((total, s) => total + parseInt(s.course.credit), 0)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  總學分
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  (已選課程)
+                </Typography>
+              </Box>
+            </Grid>
+            
+            <Grid item xs={12} sm={6} md={3}>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="h4" color="secondary">
+                  {new Set(confirmedCourses.map(s => s.course.dpt_abbr).filter(dpt => dpt && dpt.trim())).size}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   開課系所
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  (已選課程)
                 </Typography>
               </Box>
             </Grid>

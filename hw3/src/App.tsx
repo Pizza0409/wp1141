@@ -113,8 +113,8 @@ function AppContent() {
   };
 
   const handleCourseSelect = () => {
-    // 選課後自動切換到選課頁面
-    setTabValue(1);
+    // 選課後不自動跳轉，讓使用者繼續瀏覽課程
+    // setTabValue(1);
   };
 
   const handleSubmission = () => {

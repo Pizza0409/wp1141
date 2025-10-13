@@ -45,7 +45,7 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
     filterOptions
   } = useCourseSearch();
 
-  const { addSelectedCourse, isSelected, checkConflicts } = useCourseSelection();
+  const { addSelectedCourse, isSelected, checkConflicts, getSubmissionRecords } = useCourseSelection();
   const { state } = useCourseContext();
 
   const [expandedCourse, setExpandedCourse] = useState<string | null>(null);
@@ -120,9 +120,13 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
   };
 
   const handleCourseSelect = useCallback((course: CourseDetail) => {
+    // 檢查是否已經選中（預選或已確認）
+    if (isSelected(course.id)) {
+      return; // 已選中的課程不能重複選擇
+    }
     addSelectedCourse(course);
     onCourseSelect?.(course);
-  }, [addSelectedCourse, onCourseSelect]);
+  }, [addSelectedCourse, onCourseSelect, isSelected]);
 
   const handleExpandCourse = useCallback((courseId: string) => {
     setExpandedCourse(expandedCourse === courseId ? null : courseId);
@@ -133,19 +137,23 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
     return dayNames[parseInt(day)] || day;
   }, []);
 
-  const getTimeSlotColor = useCallback((timeSlot: string) => {
-    const hour = parseInt(timeSlot.split(':')[0]);
-    if (hour < 9) return 'default';
-    if (hour < 12) return 'primary';
-    if (hour < 15) return 'secondary';
-    if (hour < 18) return 'success';
-    return 'warning';
-  }, []);
+  // 檢查課程是否為預選
+  const isPreSelected = useCallback((courseId: string) => {
+    return state.selectedCourses.some(selection => selection.courseId === courseId);
+  }, [state.selectedCourses]);
+
+  // 檢查課程是否為已確認
+  const isConfirmed = useCallback((courseId: string) => {
+    const allConfirmedCourses = getSubmissionRecords().flatMap(record => record.selections);
+    return allConfirmedCourses.some(selection => selection.courseId === courseId);
+  }, [getSubmissionRecords]);
+
+
 
   const categoryFilteredCourses = getCategoryFilteredCourses();
 
   return (
-    <Box>
+    <Box sx={{ position: 'relative' }}>
       {/* 課程分組 */}
       <Paper sx={{ p: 2, mb: 2 }}>
         <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 600 }}>
@@ -173,7 +181,7 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
       <Card sx={{ mb: 2, boxShadow: 1 }}>
         <CardContent sx={{ p: 2 }}>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12} md={8}>
               <TextField
                 fullWidth
                 size="small"
@@ -189,28 +197,28 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
                 }}
               />
             </Grid>
-            <Grid item xs={12} md={2}>
-              <Button
-                fullWidth
-                variant="outlined"
-                size="small"
-                startIcon={<FilterIcon />}
-                onClick={() => setShowFilters(!showFilters)}
-              >
-                篩選
-              </Button>
-            </Grid>
-            <Grid item xs={12} md={2}>
-              <Button
-                fullWidth
-                variant="outlined"
-                size="small"
-                onClick={() => {
-                  resetSearchFilters();
-                }}
-              >
-                重置
-              </Button>
+            <Grid item xs={12} md={4}>
+              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<FilterIcon />}
+                  onClick={() => setShowFilters(!showFilters)}
+                  sx={{ minWidth: 150 }}
+                >
+                  篩選
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => {
+                    resetSearchFilters();
+                  }}
+                  sx={{ minWidth: 150 }}
+                >
+                  重置
+                </Button>
+              </Box>
             </Grid>
           </Grid>
 
@@ -319,12 +327,13 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
             <VirtualizedCourseList
               courses={categoryFilteredCourses}
               isSelected={isSelected}
+              isPreSelected={isPreSelected}
+              isConfirmed={isConfirmed}
               checkConflicts={checkConflicts}
               expandedCourse={expandedCourse}
               onCourseSelect={handleCourseSelect}
               onExpandCourse={handleExpandCourse}
               getDayName={getDayName}
-              getTimeSlotColor={getTimeSlotColor}
             />
             
             {/* 搜尋中的覆蓋層 */}
@@ -358,6 +367,7 @@ export function CourseBrowser({ onCourseSelect }: CourseBrowserProps) {
           </Box>
         )}
       </Box>
+      
     </Box>
   );
 }

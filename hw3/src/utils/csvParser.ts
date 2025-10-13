@@ -137,17 +137,25 @@ export function parseCourseCSV(csvContent: string): CourseDetail[] {
   
   console.log('CSV parsed, total rows:', parseResult.data.length);
   
-  // 使用 Map 去重，提升效能
+  // 使用 Map 去重，根據 cou_code 篩選重複課程
   const courseMap = new Map<string, CourseDetail>();
   
   // 簡化篩選邏輯，先處理所有課程
   parseResult.data.forEach((course, index) => {
-    const transformedCourse = transformCourseData(course, index);
-    const key = `${course.cou_code}_${course.ser_no}_${index}`;
+    // 確保課程有基本資訊
+    if (!course.cou_cname && !course.cou_code) {
+      console.warn('跳過無效課程:', course);
+      return;
+    }
     
-    // 避免重複課程
+    const transformedCourse = transformCourseData(course, index);
+    const key = course.cou_code; // 使用 cou_code 作為去重鍵值
+    
+    // 避免重複課程，保留第一個出現的課程
     if (!courseMap.has(key)) {
       courseMap.set(key, transformedCourse);
+    } else {
+      console.log(`跳過重複課程: ${course.cou_code} - ${course.cou_cname}`);
     }
   });
   

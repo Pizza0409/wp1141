@@ -39,7 +39,6 @@ export function ScrollToTop({ threshold = 100 }: ScrollToTopProps) {
     <Zoom in={isVisible}>
       <Tooltip title="回到頂部" placement="left">
         <Fab
-          color="primary"
           size="medium"
           onClick={scrollToTop}
           sx={{
@@ -47,9 +46,10 @@ export function ScrollToTop({ threshold = 100 }: ScrollToTopProps) {
             bottom: 24,
             right: 24,
             zIndex: 9999,
-            opacity: 0.8,
+            backgroundColor: '#1976d2',
+            color: 'white',
             '&:hover': {
-              opacity: 1
+              backgroundColor: '#1565c0'
             }
           }}
         >

@@ -105,7 +105,7 @@ function TabPanel(props: TabPanelProps) {
 function AppContent() {
   const { state } = useCourseContext();
   const { reload } = useCSVReload();
-  const { getLatestSubmission } = useCourseSelection();
+  const { getLatestSubmission, getSubmissionRecords } = useCourseSelection();
   const [tabValue, setTabValue] = useState(0);
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
@@ -207,6 +207,7 @@ function AppContent() {
           <CourseSchedule 
             preSelectedCourses={state.selectedCourses}
             confirmedCourses={getLatestSubmission()?.selections || []}
+            allConfirmedCourses={getSubmissionRecords().flatMap(record => record.selections)}
           />
         </TabPanel>
 

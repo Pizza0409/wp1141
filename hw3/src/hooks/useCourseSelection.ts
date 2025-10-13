@@ -29,15 +29,77 @@ export function useCourseSelection() {
 
   // 檢查是否已選
   const isSelected = (courseId: string) => {
-    return state.selectedCourses.some(selection => selection.courseId === courseId);
+    // 檢查是否在預選課程中
+    const isPreSelected = state.selectedCourses.some(selection => selection.courseId === courseId);
+    if (isPreSelected) return true;
+    
+    // 檢查是否在所有已確認的課程中
+    const allConfirmedCourses = getSubmissionRecords().flatMap(record => record.selections);
+    return allConfirmedCourses.some(selection => selection.courseId === courseId);
   };
 
-  // 檢查時間衝突
+  // 檢查時間衝突（用於課程瀏覽）
   const checkConflicts = (course: CourseDetail) => {
     const conflicts: string[] = [];
     
+    // 檢查與預選課程的衝突
     state.selectedCourses.forEach(selection => {
       const hasConflict = course.times.some(courseTime =>
+        selection.course.times.some(selectedTime =>
+          checkTimeConflict(courseTime, selectedTime)
+        )
+      );
+      
+      if (hasConflict) {
+        conflicts.push(selection.courseId);
+      }
+    });
+    
+    // 檢查與已選課程的衝突
+    const latestSubmission = getLatestSubmission();
+    if (latestSubmission) {
+      latestSubmission.selections.forEach(selection => {
+        const hasConflict = course.times.some(courseTime =>
+          selection.course.times.some(selectedTime =>
+            checkTimeConflict(courseTime, selectedTime)
+          )
+        );
+        
+        if (hasConflict) {
+          conflicts.push(selection.courseId);
+        }
+      });
+    }
+    
+    return conflicts;
+  };
+
+  // 檢查預選課程的衝突（用於選課管理）
+  const checkPreSelectedConflicts = (courseId: string) => {
+    const course = state.selectedCourses.find(s => s.courseId === courseId);
+    if (!course) return [];
+    
+    const conflicts: string[] = [];
+    
+    // 檢查與其他預選課程的衝突
+    state.selectedCourses.forEach(selection => {
+      if (selection.courseId !== courseId) {
+        const hasConflict = course.course.times.some(courseTime =>
+          selection.course.times.some(selectedTime =>
+            checkTimeConflict(courseTime, selectedTime)
+          )
+        );
+        
+        if (hasConflict) {
+          conflicts.push(selection.courseId);
+        }
+      }
+    });
+    
+    // 檢查與已選課程的衝突
+    const allConfirmedCourses = getSubmissionRecords().flatMap(record => record.selections);
+    allConfirmedCourses.forEach(selection => {
+      const hasConflict = course.course.times.some(courseTime =>
         selection.course.times.some(selectedTime =>
           checkTimeConflict(courseTime, selectedTime)
         )
@@ -168,6 +230,7 @@ export function useCourseSelection() {
     clearSelectedCourses,
     isSelected,
     checkConflicts,
+    checkPreSelectedConflicts,
     getConflictingCourses,
     totalCredits,
     submitSelection,

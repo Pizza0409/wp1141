@@ -41,7 +41,8 @@ export function CourseSelection({ onSubmission }: CourseSelectionProps) {
     clearSelectedCourses,
     totalCredits,
     submitSelection,
-    getLatestSubmission
+    getSubmissionRecords,
+    checkPreSelectedConflicts
   } = useCourseSelection();
 
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
@@ -53,14 +54,6 @@ export function CourseSelection({ onSubmission }: CourseSelectionProps) {
     return dayNames[parseInt(day)] || day;
   };
 
-  const getTimeSlotColor = (timeSlot: string) => {
-    const hour = parseInt(timeSlot.split(':')[0]);
-    if (hour < 9) return 'default';
-    if (hour < 12) return 'primary';
-    if (hour < 15) return 'secondary';
-    if (hour < 18) return 'success';
-    return 'warning';
-  };
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -82,7 +75,6 @@ export function CourseSelection({ onSubmission }: CourseSelectionProps) {
     }
   };
 
-  const latestSubmission = getLatestSubmission();
 
   return (
     <Box>
@@ -122,34 +114,40 @@ export function CourseSelection({ onSubmission }: CourseSelectionProps) {
       </Card>
 
       {/* 已選課程統計 */}
-      {latestSubmission && (
-        <Card sx={{ mb: 2 }}>
-          <CardContent>
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={6}>
-                <Typography variant="h6" color="success.main">
-                  已選課程 ({latestSubmission.selections.length} 門)
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  總學分: {latestSubmission.selections.reduce((total, s) => total + parseInt(s.course.credit), 0)} 學分
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  送出時間: {latestSubmission.submittedAt.toLocaleString()}
-                </Typography>
+      {(() => {
+        const allConfirmedCourses = getSubmissionRecords().flatMap(record => record.selections);
+        const totalConfirmedCredits = allConfirmedCourses.reduce((total, s) => total + parseInt(s.course.credit), 0);
+        const confirmedDepartments = new Set(allConfirmedCourses.map(s => s.course.dpt_abbr).filter(dpt => dpt && dpt.trim()));
+        
+        return allConfirmedCourses.length > 0 && (
+          <Card sx={{ mb: 2 }}>
+            <CardContent>
+              <Grid container spacing={2} alignItems="center">
+                <Grid item xs={12} md={6}>
+                  <Typography variant="h6" color="success.main">
+                    已選課程 ({allConfirmedCourses.length} 門)
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    總學分: {totalConfirmedCredits} 學分
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    開課系所: {confirmedDepartments.size} 個
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                    <Chip
+                      label="已確認"
+                      color="success"
+                      variant="outlined"
+                    />
+                  </Box>
+                </Grid>
               </Grid>
-              <Grid item xs={12} md={6}>
-                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                  <Chip
-                    label={latestSubmission.status === 'confirmed' ? '已確認' : '已送出'}
-                    color={latestSubmission.status === 'confirmed' ? 'success' : 'primary'}
-                    variant="outlined"
-                  />
-                </Box>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* 選課列表 */}
       {selectedCourses.length === 0 ? (
@@ -158,14 +156,28 @@ export function CourseSelection({ onSubmission }: CourseSelectionProps) {
         <Grid container spacing={2}>
           {selectedCourses.map((selection) => (
             <Grid item xs={12} key={selection.courseId}>
-              <Card sx={{ '&:hover': { boxShadow: 2 } }}>
+              <Card sx={{ 
+                '&:hover': { boxShadow: 2 },
+                border: checkPreSelectedConflicts(selection.courseId).length > 0 ? '2px solid #ff9800' : '1px solid #e0e0e0'
+              }}>
                 <CardContent>
                   <Grid container spacing={2} alignItems="center">
                     <Grid item xs={12} md={8}>
                       <Box>
-                        <Typography variant="h6" component="div">
-                          {selection.course.cou_cname}
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="h6" component="div">
+                            {selection.course.cou_cname}
+                          </Typography>
+                          {checkPreSelectedConflicts(selection.courseId).length > 0 && (
+                            <Chip
+                              label="衝堂"
+                              size="small"
+                              color="warning"
+                              variant="filled"
+                              sx={{ fontSize: '0.7rem', height: 20 }}
+                            />
+                          )}
+                        </Box>
                         <Typography variant="body2" color="text.secondary">
                           {selection.course.cou_ename}
                         </Typography>
@@ -198,9 +210,42 @@ export function CourseSelection({ onSubmission }: CourseSelectionProps) {
                               key={index}
                               icon={<ScheduleIcon />}
                               label={`星期${getDayName(time.day)} ${time.startTime}-${time.endTime} ${time.classroom}`}
-                              color={getTimeSlotColor(time.startTime) as any}
                               size="small"
-                              sx={{ mr: 1, mb: 1 }}
+                              sx={{ 
+                                mr: 1, 
+                                mb: 1,
+                                // 根據星期幾設定背景色
+                                backgroundColor: (() => {
+                                  const dayColors = {
+                                    '一': '#e3f2fd', // 淺藍
+                                    '二': '#f3e5f5', // 淺紫
+                                    '三': '#e8f5e8', // 淺綠
+                                    '四': '#fff3e0', // 淺橙
+                                    '五': '#fce4ec', // 淺粉
+                                    '六': '#f1f8e9', // 淺青綠
+                                    '日': '#fafafa'  // 淺灰
+                                  };
+                                  const dayName = getDayName(time.day);
+                                  return dayColors[dayName as keyof typeof dayColors] || '#f5f5f5';
+                                })(),
+                                color: '#333',
+                                border: '1px solid #ddd',
+                                '&:hover': {
+                                  backgroundColor: (() => {
+                                    const dayHoverColors = {
+                                      '一': '#bbdefb', // 深藍
+                                      '二': '#e1bee7', // 深紫
+                                      '三': '#c8e6c9', // 深綠
+                                      '四': '#ffcc02', // 深橙
+                                      '五': '#f8bbd9', // 深粉
+                                      '六': '#dcedc8', // 深青綠
+                                      '日': '#e0e0e0'  // 深灰
+                                    };
+                                    const dayName = getDayName(time.day);
+                                    return dayHoverColors[dayName as keyof typeof dayHoverColors] || '#e0e0e0';
+                                  })()
+                                }
+                              }}
                             />
                           ))}
                         </Box>

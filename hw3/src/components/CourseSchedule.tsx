@@ -24,16 +24,20 @@ import { CourseSelection } from '../types/course';
 interface CourseScheduleProps {
   preSelectedCourses?: CourseSelection[];
   confirmedCourses?: CourseSelection[];
+  allConfirmedCourses?: CourseSelection[]; // 所有已確認的課程
   selections?: CourseSelection[]; // 向後兼容
 }
 
 export function CourseSchedule({ 
   preSelectedCourses = [], 
   confirmedCourses = [], 
+  allConfirmedCourses = [],
   selections = [] 
 }: CourseScheduleProps) {
   // 向後兼容：如果只傳入 selections，則作為預選課程
   const actualPreSelected = selections.length > 0 ? selections : preSelectedCourses;
+  // 使用所有已確認課程，如果沒有提供則使用 confirmedCourses
+  const actualConfirmedCourses = allConfirmedCourses.length > 0 ? allConfirmedCourses : confirmedCourses;
 
   // 生成課表
   const schedule = useMemo(() => {
@@ -51,7 +55,7 @@ export function CourseSchedule({
     });
     
     // 填入所有課程（預選和已選）
-    const allCourses = [...actualPreSelected, ...confirmedCourses];
+    const allCourses = [...actualPreSelected, ...actualConfirmedCourses];
     allCourses.forEach(selection => {
       selection.course.times.forEach(time => {
         const dayIndex = parseInt(time.day) - 1;
@@ -77,7 +81,7 @@ export function CourseSchedule({
     });
     
     return { days, timeSlots, scheduleData };
-  }, [actualPreSelected, confirmedCourses]);
+  }, [actualPreSelected, actualConfirmedCourses]);
 
   // 檢查衝突
   const conflicts = useMemo(() => {
@@ -132,15 +136,8 @@ export function CourseSchedule({
     });
     
     return conflictList;
-  }, [actualPreSelected, confirmedCourses]);
+  }, [actualPreSelected, actualConfirmedCourses]);
 
-  const getTimeSlotColor = (timeSlot: number) => {
-    if (timeSlot < 9) return 'default';
-    if (timeSlot < 12) return 'primary';
-    if (timeSlot < 15) return 'secondary';
-    if (timeSlot < 18) return 'success';
-    return 'warning';
-  };
 
 
   return (
@@ -182,11 +179,9 @@ export function CourseSchedule({
                 {schedule.timeSlots.map(timeSlot => (
                   <TableRow key={timeSlot}>
                     <TableCell>
-                      <Chip
-                        label={`${timeSlot}:00`}
-                        color={getTimeSlotColor(timeSlot) as any}
-                        size="small"
-                      />
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {timeSlot}:00
+                      </Typography>
                     </TableCell>
                     {schedule.days.map(day => {
                       const courses = schedule.scheduleData[day][timeSlot.toString()];
@@ -196,7 +191,7 @@ export function CourseSchedule({
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                             {courses.length > 0 ? (
                               courses.map((selection, index) => {
-                                const isConfirmed = confirmedCourses.includes(selection);
+                                const isConfirmed = actualConfirmedCourses.includes(selection);
                                 const hasConflict = courses.length > 1;
                                 
                                 return (
@@ -238,9 +233,68 @@ export function CourseSchedule({
                                       sx={{ 
                                         maxWidth: 100,
                                         fontSize: '0.7rem',
+                                        fontWeight: isConfirmed ? 'bold' : 'normal',
                                         '& .MuiChip-label': {
                                           overflow: 'hidden',
                                           textOverflow: 'ellipsis'
+                                        },
+                                        // 根據課程狀態和星期幾設定背景色
+                                        backgroundColor: hasConflict ? undefined : (() => {
+                                          if (isConfirmed) {
+                                            // 已選課程使用飽和的顏色
+                                            const confirmedColors = {
+                                              '一': '#1976d2', // 深藍
+                                              '二': '#7b1fa2', // 深紫
+                                              '三': '#388e3c', // 深綠
+                                              '四': '#f57c00', // 深橙
+                                              '五': '#c2185b', // 深粉
+                                              '六': '#689f38', // 深青綠
+                                              '日': '#616161'  // 深灰
+                                            };
+                                            return confirmedColors[day as keyof typeof confirmedColors] || '#1976d2';
+                                          } else {
+                                            // 預選課程使用淺色
+                                            const dayColors = {
+                                              '一': '#e3f2fd', // 淺藍
+                                              '二': '#f3e5f5', // 淺紫
+                                              '三': '#e8f5e8', // 淺綠
+                                              '四': '#fff3e0', // 淺橙
+                                              '五': '#fce4ec', // 淺粉
+                                              '六': '#f1f8e9', // 淺青綠
+                                              '日': '#fafafa'  // 淺灰
+                                            };
+                                            return dayColors[day as keyof typeof dayColors] || '#f5f5f5';
+                                          }
+                                        })(),
+                                        color: isConfirmed ? 'white' : '#333',
+                                        '&:hover': {
+                                          backgroundColor: hasConflict ? undefined : (() => {
+                                            if (isConfirmed) {
+                                              // 已選課程懸停效果
+                                              const confirmedHoverColors = {
+                                                '一': '#1565c0', // 更深藍
+                                                '二': '#6a1b9a', // 更深紫
+                                                '三': '#2e7d32', // 更深綠
+                                                '四': '#ef6c00', // 更深橙
+                                                '五': '#ad1457', // 更深粉
+                                                '六': '#558b2f', // 更深青綠
+                                                '日': '#424242'  // 更深灰
+                                              };
+                                              return confirmedHoverColors[day as keyof typeof confirmedHoverColors] || '#1565c0';
+                                            } else {
+                                              // 預選課程懸停效果
+                                              const dayHoverColors = {
+                                                '一': '#bbdefb', // 深藍
+                                                '二': '#e1bee7', // 深紫
+                                                '三': '#c8e6c9', // 深綠
+                                                '四': '#ffcc02', // 深橙
+                                                '五': '#f8bbd9', // 深粉
+                                                '六': '#dcedc8', // 深青綠
+                                                '日': '#e0e0e0'  // 深灰
+                                              };
+                                              return dayHoverColors[day as keyof typeof dayHoverColors] || '#e0e0e0';
+                                            }
+                                          })()
                                         }
                                       }}
                                     />
@@ -259,6 +313,34 @@ export function CourseSchedule({
               </TableBody>
             </Table>
           </TableContainer>
+          
+          {/* 無時間課程 */}
+          {(() => {
+            const allCourses = [...actualPreSelected, ...actualConfirmedCourses];
+            const coursesWithoutTimes = allCourses.filter(selection => 
+              !selection.course.times || selection.course.times.length === 0
+            );
+            
+            return coursesWithoutTimes.length > 0 && (
+              <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  無指定時間：
+                  {coursesWithoutTimes.map((selection, index) => (
+                    <span key={selection.courseId}>
+                      {index > 0 && '、'}
+                      <Chip
+                        label={`[${actualConfirmedCourses.includes(selection) ? "已選" : "預選"}] ${selection.course.cou_cname}`}
+                        size="small"
+                        color={actualConfirmedCourses.includes(selection) ? "success" : "primary"}
+                        variant={actualConfirmedCourses.includes(selection) ? "filled" : "outlined"}
+                        sx={{ ml: 0.5, mr: 0.5 }}
+                      />
+                    </span>
+                  ))}
+                </Typography>
+              </Box>
+            );
+          })()}
         </CardContent>
       </Card>
 
@@ -287,7 +369,7 @@ export function CourseSchedule({
             <Grid item xs={12} sm={6} md={3}>
               <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="h4" color="success.main">
-                  {confirmedCourses.reduce((total, s) => total + parseInt(s.course.credit), 0)}
+                  {actualConfirmedCourses.reduce((total, s) => total + parseInt(s.course.credit), 0)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   總學分
@@ -301,7 +383,7 @@ export function CourseSchedule({
             <Grid item xs={12} sm={6} md={3}>
               <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="h4" color="secondary">
-                  {new Set(confirmedCourses.map(s => s.course.dpt_abbr).filter(dpt => dpt && dpt.trim())).size}
+                  {new Set(actualConfirmedCourses.map(s => s.course.dpt_abbr).filter(dpt => dpt && dpt.trim())).size}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   開課系所
@@ -325,6 +407,7 @@ export function CourseSchedule({
           </Grid>
         </CardContent>
       </Card>
+
     </Box>
   );
 }

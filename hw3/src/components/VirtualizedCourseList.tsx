@@ -1,5 +1,5 @@
 import { memo, useState, useEffect, useRef, useCallback } from 'react';
-import { Box, Typography, Grid, Fab } from '@mui/material';
+import { Box, Typography, Grid, Button } from '@mui/material';
 import { KeyboardArrowUp as KeyboardArrowUpIcon } from '@mui/icons-material';
 import { CourseDetail } from '../types/course';
 import CourseCard from './CourseCard';
@@ -7,23 +7,25 @@ import CourseCard from './CourseCard';
 interface VirtualizedCourseListProps {
   courses: CourseDetail[];
   isSelected: (courseId: string) => boolean;
+  isPreSelected: (courseId: string) => boolean;
+  isConfirmed: (courseId: string) => boolean;
   checkConflicts: (course: CourseDetail) => string[];
   expandedCourse: string | null;
   onCourseSelect: (course: CourseDetail) => void;
   onExpandCourse: (courseId: string) => void;
   getDayName: (day: string) => string;
-  getTimeSlotColor: (timeSlot: string) => string;
 }
 
 const VirtualizedCourseList = memo(({
   courses,
   isSelected,
+  isPreSelected,
+  isConfirmed,
   checkConflicts,
   expandedCourse,
   onCourseSelect,
   onExpandCourse,
-  getDayName,
-  getTimeSlotColor
+  getDayName
 }: VirtualizedCourseListProps) => {
   const [visibleRange, setVisibleRange] = useState({ start: 0, end: 20 });
   const [showScrollToTop, setShowScrollToTop] = useState(false);
@@ -95,12 +97,13 @@ const VirtualizedCourseList = memo(({
             key={course.id}
             course={course}
             isSelected={isSelected(course.id)}
+            isPreSelected={isPreSelected(course.id)}
+            isConfirmed={isConfirmed(course.id)}
             hasConflicts={checkConflicts(course).length > 0}
             isExpanded={expandedCourse === course.id}
             onSelect={onCourseSelect}
             onExpand={onExpandCourse}
             getDayName={getDayName}
-            getTimeSlotColor={getTimeSlotColor}
           />
         ))}
       </Grid>
@@ -135,12 +138,13 @@ const VirtualizedCourseList = memo(({
                 key={course.id}
                 course={course}
                 isSelected={isSelected(course.id)}
+                isPreSelected={isPreSelected(course.id)}
+                isConfirmed={isConfirmed(course.id)}
                 hasConflicts={checkConflicts(course).length > 0}
                 isExpanded={expandedCourse === course.id}
                 onSelect={onCourseSelect}
                 onExpand={onExpandCourse}
                 getDayName={getDayName}
-                getTimeSlotColor={getTimeSlotColor}
               />
             ))}
           </Grid>
@@ -149,19 +153,28 @@ const VirtualizedCourseList = memo(({
       
       {/* 回到頂部按鈕 */}
       {showScrollToTop && (
-        <Fab
-          size="small"
-          color="primary"
+        <Button
+          variant="contained"
+          startIcon={<KeyboardArrowUpIcon />}
           onClick={scrollToTop}
           sx={{
-            position: 'absolute',
-            bottom: 16,
-            right: 16,
-            zIndex: 1000
+            position: 'fixed',
+            bottom: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 1000,
+            backgroundColor: 'rgba(227, 242, 253, 0.3)',
+            color: '#1976d2',
+            border: '1px solid rgba(187, 222, 251, 0.5)',
+            backdropFilter: 'blur(4px)',
+            '&:hover': {
+              backgroundColor: 'rgba(187, 222, 251, 0.6)',
+              color: '#1565c0'
+            }
           }}
         >
-          <KeyboardArrowUpIcon />
-        </Fab>
+          回到頂部
+        </Button>
       )}
     </Box>
   );

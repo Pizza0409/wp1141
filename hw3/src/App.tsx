@@ -105,7 +105,7 @@ function TabPanel(props: TabPanelProps) {
 function AppContent() {
   const { state } = useCourseContext();
   const { reload } = useCSVReload();
-  const { getLatestSubmission, getSubmissionRecords } = useCourseSelection();
+  const { clearAllData, getLatestSubmission, getSubmissionRecords } = useCourseSelection();
   const [tabValue, setTabValue] = useState(0);
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
@@ -120,6 +120,17 @@ function AppContent() {
   const handleSubmission = () => {
     // 送出後自動切換到記錄頁面
     setTabValue(2);
+  };
+
+  const handleResetAll = () => {
+    if (window.confirm('確定要重新選課嗎？這將清除所有預選課程、送出記錄和搜尋條件，此操作無法復原。')) {
+      // 清除所有資料（預選課程、送出記錄、搜尋條件）
+      clearAllData();
+      // 重新載入課程資料
+      reload();
+      // 回到課程瀏覽頁面
+      setTabValue(0);
+    }
   };
 
   if (state.isLoading) {
@@ -167,8 +178,8 @@ function AppContent() {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             NTU 課程選課系統
           </Typography>
-          <Tooltip title="重新載入課程資料">
-            <IconButton color="inherit" onClick={reload}>
+          <Tooltip title="重新選課">
+            <IconButton color="inherit" onClick={handleResetAll}>
               <RefreshIcon />
             </IconButton>
           </Tooltip>

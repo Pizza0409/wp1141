@@ -27,6 +27,11 @@ export function useCourseSelection() {
     dispatch({ type: 'CLEAR_SELECTED_COURSES' });
   };
 
+  // 清除所有資料
+  const clearAllData = () => {
+    dispatch({ type: 'CLEAR_ALL_DATA' });
+  };
+
   // 檢查是否已選
   const isSelected = (courseId: string) => {
     // 檢查是否在預選課程中
@@ -42,8 +47,11 @@ export function useCourseSelection() {
   const checkConflicts = (course: CourseDetail) => {
     const conflicts: string[] = [];
     
-    // 檢查與預選課程的衝突
+    // 檢查與預選課程的衝突（排除自己）
     state.selectedCourses.forEach(selection => {
+      // 如果是同一個課程，跳過檢查
+      if (selection.courseId === course.id) return;
+      
       const hasConflict = course.times.some(courseTime =>
         selection.course.times.some(selectedTime =>
           checkTimeConflict(courseTime, selectedTime)
@@ -56,20 +64,18 @@ export function useCourseSelection() {
     });
     
     // 檢查與已選課程的衝突
-    const latestSubmission = getLatestSubmission();
-    if (latestSubmission) {
-      latestSubmission.selections.forEach(selection => {
-        const hasConflict = course.times.some(courseTime =>
-          selection.course.times.some(selectedTime =>
-            checkTimeConflict(courseTime, selectedTime)
-          )
-        );
-        
-        if (hasConflict) {
-          conflicts.push(selection.courseId);
-        }
-      });
-    }
+    const allConfirmedCourses = getSubmissionRecords().flatMap(record => record.selections);
+    allConfirmedCourses.forEach(selection => {
+      const hasConflict = course.times.some(courseTime =>
+        selection.course.times.some(selectedTime =>
+          checkTimeConflict(courseTime, selectedTime)
+        )
+      );
+      
+      if (hasConflict) {
+        conflicts.push(selection.courseId);
+      }
+    });
     
     return conflicts;
   };
@@ -228,6 +234,7 @@ export function useCourseSelection() {
     addSelectedCourse,
     removeSelectedCourse,
     clearSelectedCourses,
+    clearAllData,
     isSelected,
     checkConflicts,
     checkPreSelectedConflicts,

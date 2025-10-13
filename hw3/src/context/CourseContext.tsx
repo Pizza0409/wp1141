@@ -24,7 +24,8 @@ type CourseAction =
   | { type: 'REMOVE_SELECTED_COURSE'; payload: string }
   | { type: 'CLEAR_SELECTED_COURSES' }
   | { type: 'ADD_SUBMISSION_RECORD'; payload: SubmissionRecord }
-  | { type: 'UPDATE_SUBMISSION_RECORD'; payload: SubmissionRecord };
+  | { type: 'UPDATE_SUBMISSION_RECORD'; payload: SubmissionRecord }
+  | { type: 'CLEAR_ALL_DATA' };
 
 // 初始狀態
 const initialState: CourseState = {
@@ -103,6 +104,21 @@ function courseReducer(state: CourseState, action: CourseAction): CourseState {
         submissionRecords: state.submissionRecords.map(record =>
           record.id === action.payload.id ? action.payload : record
         )
+      };
+    
+    case 'CLEAR_ALL_DATA':
+      return {
+        ...state,
+        selectedCourses: [],
+        submissionRecords: [],
+        searchFilters: {
+          keyword: '',
+          department: '',
+          credit: '',
+          day: '',
+          timeSlot: '',
+          teacher: ''
+        }
       };
     
     default:

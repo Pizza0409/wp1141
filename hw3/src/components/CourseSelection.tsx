@@ -49,6 +49,11 @@ export function CourseSelection({ onSubmission }: CourseSelectionProps) {
   const [submissionNote, setSubmissionNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 檢查是否有衝堂的預選課程
+  const hasConflicts = selectedCourses.some(selection => 
+    checkPreSelectedConflicts(selection.courseId).length > 0
+  );
+
   const getDayName = (day: string) => {
     const dayNames = ['', '一', '二', '三', '四', '五', '六', '日'];
     return dayNames[parseInt(day)] || day;
@@ -103,7 +108,7 @@ export function CourseSelection({ onSubmission }: CourseSelectionProps) {
                 <Button
                   variant="contained"
                   onClick={() => setShowSubmitDialog(true)}
-                  disabled={selectedCourses.length === 0}
+                  disabled={selectedCourses.length === 0 || hasConflicts}
                 >
                   送出選課
                 </Button>
@@ -112,6 +117,15 @@ export function CourseSelection({ onSubmission }: CourseSelectionProps) {
           </Grid>
         </CardContent>
       </Card>
+
+      {/* 衝堂警告 */}
+      {hasConflicts && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          <Typography variant="body2">
+            預選課程中有時間衝突，請先解決衝堂問題後再送出選課。
+          </Typography>
+        </Alert>
+      )}
 
       {/* 已選課程統計 */}
       {(() => {

@@ -1,0 +1,67 @@
+import sqlite3 from 'sqlite3';
+import path from 'path';
+
+const dbPath = process.env.DATABASE_PATH || './database/locations.db';
+
+export const db = new sqlite3.Database(dbPath);
+
+export const initializeDatabase = (): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    db.serialize(() => {
+      // 建立 Users 表
+      db.run(`
+        CREATE TABLE IF NOT EXISTS users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          email TEXT UNIQUE NOT NULL,
+          password TEXT NOT NULL,
+          createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `, (err) => {
+        if (err) {
+          console.error('Error creating users table:', err);
+          reject(err);
+          return;
+        }
+        console.log('✅ Users table created/verified');
+      });
+
+      // 建立 Locations 表
+      db.run(`
+        CREATE TABLE IF NOT EXISTS locations (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          address TEXT NOT NULL,
+          latitude REAL NOT NULL,
+          longitude REAL NOT NULL,
+          rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+          notes TEXT,
+          userId INTEGER NOT NULL,
+          createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (userId) REFERENCES users (id) ON DELETE CASCADE
+        )
+      `, (err) => {
+        if (err) {
+          console.error('Error creating locations table:', err);
+          reject(err);
+          return;
+        }
+        console.log('✅ Locations table created/verified');
+      });
+
+      // 建立索引
+      db.run(`
+        CREATE INDEX IF NOT EXISTS idx_locations_user_id ON locations (userId)
+      `, (err) => {
+        if (err) {
+          console.error('Error creating index:', err);
+          reject(err);
+          return;
+        }
+        console.log('✅ Database indexes created/verified');
+        resolve();
+      });
+    });
+  });
+};

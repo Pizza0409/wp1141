@@ -17,6 +17,11 @@ interface LocationFormDialogProps {
   onClose: () => void;
   onSubmit: (data: CreateLocationRequest | UpdateLocationRequest) => Promise<void>;
   location?: Location | null;
+  prefilledData?: {
+    address: string;
+    latitude: number;
+    longitude: number;
+  } | null;
   title: string;
 }
 
@@ -25,11 +30,12 @@ const LocationFormDialog: React.FC<LocationFormDialogProps> = ({
   onClose,
   onSubmit,
   location,
+  prefilledData,
   title,
 }) => {
   const [formData, setFormData] = useState({
     name: location?.name || '',
-    address: location?.address || '',
+    address: location?.address || prefilledData?.address || '',
     rating: location?.rating || 3,
     notes: location?.notes || '',
   });
@@ -56,7 +62,17 @@ const LocationFormDialog: React.FC<LocationFormDialogProps> = ({
     setLoading(true);
 
     try {
-      await onSubmit(formData);
+      const submitData = location 
+        ? { ...formData } as UpdateLocationRequest
+        : { 
+            ...formData,
+            ...(prefilledData && {
+              latitude: prefilledData.latitude,
+              longitude: prefilledData.longitude
+            })
+          } as CreateLocationRequest;
+      
+      await onSubmit(submitData);
       onClose();
       setFormData({
         name: '',
@@ -76,7 +92,7 @@ const LocationFormDialog: React.FC<LocationFormDialogProps> = ({
       onClose();
       setFormData({
         name: location?.name || '',
-        address: location?.address || '',
+        address: location?.address || prefilledData?.address || '',
         rating: location?.rating || 3,
         notes: location?.notes || '',
       });

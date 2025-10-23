@@ -15,7 +15,19 @@ export const register = async (req: Request, res: Response) => {
 
     const { emailOrUsername, password } = req.body;
 
-    const result = await AuthService.register(emailOrUsername, password);
+    // 後端 trim 處理
+    const trimmedEmailOrUsername = emailOrUsername.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedEmailOrUsername) {
+      return res.status(400).json({ error: 'Email or username cannot be empty' });
+    }
+
+    if (!trimmedPassword) {
+      return res.status(400).json({ error: 'Password cannot be empty' });
+    }
+
+    const result = await AuthService.register(trimmedEmailOrUsername, trimmedPassword);
     
     res.status(201).json({
       message: 'User registered successfully',
@@ -47,7 +59,19 @@ export const login = async (req: Request, res: Response) => {
 
     const { emailOrUsername, password } = req.body;
 
-    const result = await AuthService.login(emailOrUsername, password);
+    // 後端 trim 處理
+    const trimmedEmailOrUsername = emailOrUsername.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedEmailOrUsername) {
+      return res.status(400).json({ error: 'Email or username cannot be empty' });
+    }
+
+    if (!trimmedPassword) {
+      return res.status(400).json({ error: 'Password cannot be empty' });
+    }
+
+    const result = await AuthService.login(trimmedEmailOrUsername, trimmedPassword);
     
     res.json({
       message: 'Login successful',
@@ -75,17 +99,41 @@ export const logout = async (req: Request, res: Response) => {
 export const validateRegister = [
   body('emailOrUsername')
     .notEmpty()
-    .withMessage('Email or username is required'),
+    .withMessage('Email or username is required')
+    .custom((value) => {
+      if (!value.trim()) {
+        throw new Error('Email or username cannot be empty or whitespace only');
+      }
+      return true;
+    }),
   body('password')
     .isLength({ min: 6 })
     .withMessage('Password must be at least 6 characters long')
+    .custom((value) => {
+      if (!value.trim()) {
+        throw new Error('Password cannot be empty or whitespace only');
+      }
+      return true;
+    })
 ];
 
 export const validateLogin = [
   body('emailOrUsername')
     .notEmpty()
-    .withMessage('Email or username is required'),
+    .withMessage('Email or username is required')
+    .custom((value) => {
+      if (!value.trim()) {
+        throw new Error('Email or username cannot be empty or whitespace only');
+      }
+      return true;
+    }),
   body('password')
     .notEmpty()
     .withMessage('Password is required')
+    .custom((value) => {
+      if (!value.trim()) {
+        throw new Error('Password cannot be empty or whitespace only');
+      }
+      return true;
+    })
 ];

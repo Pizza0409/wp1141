@@ -36,6 +36,11 @@ const DashboardPage = () => {
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [prefilledLocationData, setPrefilledLocationData] = useState<{
+    address: string;
+    latitude: number;
+    longitude: number;
+  } | null>(null);
 
   const handleCreateLocation = async (data: CreateLocationRequest) => {
     await createLocation(data);
@@ -61,6 +66,16 @@ const DashboardPage = () => {
   const handleFormClose = () => {
     setFormDialogOpen(false);
     setEditingLocation(null);
+    setPrefilledLocationData(null);
+  };
+
+  const handleAddFromMap = (locationData: {
+    address: string;
+    latitude: number;
+    longitude: number;
+  }) => {
+    setPrefilledLocationData(locationData);
+    setFormDialogOpen(true);
   };
 
   const handleLocationSelect = (_location: Location) => {
@@ -74,7 +89,7 @@ const DashboardPage = () => {
   );
 
   return (
-    <Box sx={{ flexGrow: 1 }}>
+    <Box sx={{ flexGrow: 1, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <AppBar position="static">
         <Toolbar>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
@@ -89,19 +104,35 @@ const DashboardPage = () => {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4, mx: 'auto' }}>
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
+      <Box sx={{ 
+        flex: 1, 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'flex-start',
+        bgcolor: 'background.default',
+        py: 4
+      }}>
+        <Container maxWidth="lg" sx={{ width: '100%', px: 2 }}>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
 
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3 }}>
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: { xs: 'column', md: 'row' }, 
+            gap: 3,
+            justifyContent: 'center',
+            alignItems: 'flex-start',
+            maxWidth: '100%'
+          }}>
           {/* 地圖區域 */}
           <Box sx={{ flex: { md: 2 } }}>
             <MapComponent
               locations={locations}
               onLocationSelect={handleLocationSelect}
+              onAddLocation={handleAddFromMap}
             />
           </Box>
 
@@ -189,31 +220,33 @@ const DashboardPage = () => {
             )}
           </Box>
         </Box>
+        </Container>
+      </Box>
 
-        {/* 新增地點按鈕 */}
-        <Fab
-          color="primary"
-          aria-label="add"
-          sx={{ position: 'fixed', bottom: 16, right: 16 }}
-          onClick={() => setFormDialogOpen(true)}
-        >
-          <AddIcon />
-        </Fab>
+      {/* 新增地點按鈕 */}
+      <Fab
+        color="primary"
+        aria-label="add"
+        sx={{ position: 'fixed', bottom: 16, right: 16 }}
+        onClick={() => setFormDialogOpen(true)}
+      >
+        <AddIcon />
+      </Fab>
 
-        {/* 地點表單對話框 */}
-        <LocationFormDialog
-          open={formDialogOpen}
-          onClose={handleFormClose}
-          onSubmit={editingLocation ? handleUpdateLocation : (data: CreateLocationRequest | UpdateLocationRequest) => {
-            if ('name' in data && data.name) {
-              return handleCreateLocation(data as CreateLocationRequest);
-            }
-            return Promise.resolve();
-          }}
-          location={editingLocation}
-          title={editingLocation ? '編輯地點' : '新增地點'}
-        />
-      </Container>
+      {/* 地點表單對話框 */}
+      <LocationFormDialog
+        open={formDialogOpen}
+        onClose={handleFormClose}
+        onSubmit={editingLocation ? handleUpdateLocation : (data: CreateLocationRequest | UpdateLocationRequest) => {
+          if ('name' in data && data.name) {
+            return handleCreateLocation(data as CreateLocationRequest);
+          }
+          return Promise.resolve();
+        }}
+        location={editingLocation}
+        prefilledData={prefilledLocationData}
+        title={editingLocation ? '編輯地點' : '新增地點'}
+      />
     </Box>
   );
 };

@@ -26,12 +26,32 @@ const RegisterPage = () => {
     e.preventDefault();
     setError('');
 
-    if (password !== confirmPassword) {
+    // 驗證輸入不能為空白或純空格
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    const trimmedConfirmPassword = confirmPassword.trim();
+
+    if (!trimmedEmail) {
+      setError('請輸入電子郵件或使用者代號');
+      return;
+    }
+
+    if (!trimmedPassword) {
+      setError('請輸入密碼');
+      return;
+    }
+
+    if (!trimmedConfirmPassword) {
+      setError('請確認密碼');
+      return;
+    }
+
+    if (trimmedPassword !== trimmedConfirmPassword) {
       setError('密碼確認不一致');
       return;
     }
 
-    if (password.length < 6) {
+    if (trimmedPassword.length < 6) {
       setError('密碼長度至少需要 6 個字元');
       return;
     }
@@ -39,7 +59,7 @@ const RegisterPage = () => {
     setLoading(true);
 
     try {
-      await register(email, password);
+      await register(trimmedEmail, trimmedPassword);
       navigate('/login');
     } catch (err) {
       setError(err instanceof Error ? err.message : '註冊失敗');
@@ -49,17 +69,22 @@ const RegisterPage = () => {
   };
 
   return (
-    <Container component="main" maxWidth="xs">
-      <Box
-        sx={{
-          marginTop: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          minHeight: '100vh',
-          justifyContent: 'center',
-        }}
-      >
+    <Box sx={{ 
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      bgcolor: 'background.default'
+    }}>
+      <Container component="main" maxWidth="xs">
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            width: '100%',
+          }}
+        >
         <Paper elevation={3} sx={{ padding: 4, width: '100%' }}>
           <Typography component="h1" variant="h4" align="center" gutterBottom>
             註冊
@@ -126,8 +151,9 @@ const RegisterPage = () => {
             </Box>
           </Box>
         </Paper>
-      </Box>
-    </Container>
+        </Box>
+      </Container>
+    </Box>
   );
 };
 

@@ -20,9 +20,14 @@ interface MapComponentProps {
     notes: string;
   }>;
   onLocationSelect?: (location: any) => void;
+  onAddLocation?: (locationData: {
+    address: string;
+    latitude: number;
+    longitude: number;
+  }) => void;
 }
 
-const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect }) => {
+const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect, onAddLocation }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -31,6 +36,13 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
   const [searchResult, setSearchResult] = useState<any>(null);
 
   useEffect(() => {
+    // 設定全域函數供 InfoWindow 按鈕使用
+    (window as any).addLocationFromMap = (address: string, lat: number, lng: number) => {
+      if (onAddLocation) {
+        onAddLocation({ address, latitude: lat, longitude: lng });
+      }
+    };
+
     const initMap = () => {
       if (!mapRef.current || !window.google) {
         setMapError('Google Maps API not loaded');
@@ -114,8 +126,10 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
     return () => {
       // 清理標記
       markersRef.current.forEach(marker => marker.setMap(null));
+      // 清理全域函數
+      delete (window as any).addLocationFromMap;
     };
-  }, [locations, onLocationSelect]);
+  }, [locations, onLocationSelect, onAddLocation]);
 
   const handleSearch = () => {
     if (!searchQuery.trim() || !window.google || !mapInstanceRef.current) {
@@ -151,9 +165,26 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
         // 顯示資訊視窗
         const infoWindow = new window.google.maps.InfoWindow({
           content: `
-            <div style="padding: 10px;">
-              <h3>搜尋結果</h3>
-              <p><strong>地址:</strong> ${results[0].formatted_address}</p>
+            <div style="padding: 10px; min-width: 200px;">
+              <h3 style="margin: 0 0 10px 0; color: #1976d2;">搜尋結果</h3>
+              <p style="margin: 5px 0;"><strong>地址:</strong> ${results[0].formatted_address}</p>
+              <button 
+                onclick="window.addLocationFromMap('${results[0].formatted_address}', ${location.lat()}, ${location.lng()})"
+                style="
+                  background: #1976d2; 
+                  color: white; 
+                  border: none; 
+                  padding: 8px 16px; 
+                  border-radius: 4px; 
+                  cursor: pointer; 
+                  margin-top: 10px;
+                  font-size: 14px;
+                "
+                onmouseover="this.style.background='#1565c0'"
+                onmouseout="this.style.background='#1976d2'"
+              >
+                ➕ 新增到我的清單
+              </button>
             </div>
           `,
         });

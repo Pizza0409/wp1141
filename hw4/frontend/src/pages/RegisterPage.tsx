@@ -40,7 +40,7 @@ const RegisterPage = () => {
 
     try {
       await register(email, password);
-      navigate('/dashboard');
+      navigate('/login');
     } catch (err) {
       setError(err instanceof Error ? err.message : '註冊失敗');
     } finally {
@@ -49,13 +49,15 @@ const RegisterPage = () => {
   };
 
   return (
-    <Container component="main" maxWidth="sm">
+    <Container component="main" maxWidth="xs">
       <Box
         sx={{
           marginTop: 8,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
+          minHeight: '100vh',
+          justifyContent: 'center',
         }}
       >
         <Paper elevation={3} sx={{ padding: 4, width: '100%' }}>
@@ -74,10 +76,10 @@ const RegisterPage = () => {
               margin="normal"
               required
               fullWidth
-              id="email"
-              label="電子郵件"
-              name="email"
-              autoComplete="email"
+              id="emailOrUsername"
+              label="電子郵件或使用者代號"
+              name="emailOrUsername"
+              autoComplete="username"
               autoFocus
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -93,6 +95,8 @@ const RegisterPage = () => {
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              helperText="密碼至少需要 6 個字元"
+              error={password.length > 0 && password.length < 6}
             />
             <TextField
               margin="normal"

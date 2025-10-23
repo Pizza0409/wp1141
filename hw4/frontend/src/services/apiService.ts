@@ -43,13 +43,28 @@ class ApiService {
 
   // 認證相關 API
   async register(data: AuthRequest): Promise<AuthResponse> {
-    const response: AxiosResponse<ApiResponse<AuthResponse>> = await this.api.post('/auth/register', data);
-    return response.data.data!;
+    try {
+      const response: AxiosResponse<any> = await this.api.post('/auth/register', data);
+      // 後端直接回傳 token 和 user，不是包在 data 裡面
+      return {
+        token: response.data.token,
+        user: response.data.user
+      };
+    } catch (error: any) {
+      if (error.response?.status === 409) {
+        throw new Error('此電子郵件或使用者代號已被註冊，請使用其他帳號或直接登入');
+      }
+      throw error;
+    }
   }
 
   async login(data: AuthRequest): Promise<AuthResponse> {
-    const response: AxiosResponse<ApiResponse<AuthResponse>> = await this.api.post('/auth/login', data);
-    return response.data.data!;
+    const response: AxiosResponse<any> = await this.api.post('/auth/login', data);
+    // 後端直接回傳 token 和 user，不是包在 data 裡面
+    return {
+      token: response.data.token,
+      user: response.data.user
+    };
   }
 
   async logout(): Promise<void> {

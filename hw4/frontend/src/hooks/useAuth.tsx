@@ -44,9 +44,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setLoading(false);
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (emailOrUsername: string, password: string) => {
     try {
-      const response = await apiService.login({ email, password });
+      const response = await apiService.login({ emailOrUsername, password });
       
       setToken(response.token);
       setUser(response.user);
@@ -59,9 +59,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  const register = async (email: string, password: string) => {
+  const register = async (emailOrUsername: string, password: string) => {
     try {
-      const response = await apiService.register({ email, password });
+      const response = await apiService.register({ emailOrUsername, password });
       
       setToken(response.token);
       setUser(response.user);

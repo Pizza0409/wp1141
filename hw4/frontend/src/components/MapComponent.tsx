@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Box, Typography, Alert } from '@mui/material';
+import { Box, Typography, Alert, TextField, Button, Paper } from '@mui/material';
+import { Search as SearchIcon } from '@mui/icons-material';
 
 declare global {
   interface Window {
@@ -26,6 +27,8 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const [mapError, setMapError] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchResult, setSearchResult] = useState<any>(null);
 
   useEffect(() => {
     const initMap = () => {
@@ -114,6 +117,58 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
     };
   }, [locations, onLocationSelect]);
 
+  const handleSearch = () => {
+    if (!searchQuery.trim() || !window.google || !mapInstanceRef.current) {
+      return;
+    }
+
+    const geocoder = new window.google.maps.Geocoder();
+    geocoder.geocode({ address: searchQuery }, (results: any, status: any) => {
+      if (status === 'OK' && results[0]) {
+        const location = results[0].geometry.location;
+        
+        // 清除之前的搜尋結果標記
+        if (searchResult) {
+          searchResult.setMap(null);
+        }
+        
+        // 新增搜尋結果標記
+        const marker = new window.google.maps.Marker({
+          position: location,
+          map: mapInstanceRef.current,
+          title: searchQuery,
+          icon: {
+            url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
+          }
+        });
+        
+        setSearchResult(marker);
+        
+        // 移動地圖到搜尋結果
+        mapInstanceRef.current.setCenter(location);
+        mapInstanceRef.current.setZoom(15);
+        
+        // 顯示資訊視窗
+        const infoWindow = new window.google.maps.InfoWindow({
+          content: `
+            <div style="padding: 10px;">
+              <h3>搜尋結果</h3>
+              <p><strong>地址:</strong> ${results[0].formatted_address}</p>
+            </div>
+          `,
+        });
+        
+        marker.addListener('click', () => {
+          infoWindow.open(mapInstanceRef.current, marker);
+        });
+        
+        infoWindow.open(mapInstanceRef.current, marker);
+      } else {
+        alert('找不到該地址，請嘗試其他關鍵字');
+      }
+    });
+  };
+
   if (mapError) {
     return (
       <Box sx={{ height: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -129,6 +184,33 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
       <Typography variant="h6" gutterBottom>
         地點地圖
       </Typography>
+      
+      {/* 搜尋框 */}
+      <Paper elevation={2} sx={{ p: 2, mb: 2 }}>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <TextField
+            fullWidth
+            label="搜尋地址"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleSearch();
+              }
+            }}
+            placeholder="輸入地址或地名..."
+          />
+          <Button
+            variant="contained"
+            onClick={handleSearch}
+            startIcon={<SearchIcon />}
+            disabled={!searchQuery.trim()}
+          >
+            搜尋
+          </Button>
+        </Box>
+      </Paper>
+      
       <Box
         ref={mapRef}
         sx={{

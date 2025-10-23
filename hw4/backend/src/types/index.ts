@@ -1,6 +1,7 @@
 export interface User {
   id: number;
-  email: string;
+  email?: string;
+  username?: string;
   password: string;
   createdAt: string;
   updatedAt: string;
@@ -34,7 +35,7 @@ export interface UpdateLocationRequest {
 }
 
 export interface AuthRequest {
-  email: string;
+  emailOrUsername: string;
   password: string;
 }
 
@@ -42,7 +43,8 @@ export interface AuthResponse {
   token: string;
   user: {
     id: number;
-    email: string;
+    email?: string;
+    username?: string;
   };
 }
 

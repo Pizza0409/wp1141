@@ -14,12 +14,15 @@ import {
   Alert,
   CircularProgress,
   Fab,
+  TextField,
+  InputAdornment,
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   LocationOn as LocationIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../hooks/useAuth';
 import { useLocations } from '../hooks/useLocations';
@@ -32,6 +35,7 @@ const DashboardPage = () => {
   const { locations, loading, error, createLocation, updateLocation, deleteLocation } = useLocations();
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const handleCreateLocation = async (data: CreateLocationRequest) => {
     await createLocation(data);
@@ -63,6 +67,12 @@ const DashboardPage = () => {
     // 可以在此處添加選擇地點的邏輯
   };
 
+  // 過濾地點列表
+  const filteredLocations = locations.filter(location =>
+    location.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    location.address.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <Box sx={{ flexGrow: 1 }}>
       <AppBar position="static">
@@ -71,7 +81,7 @@ const DashboardPage = () => {
             地點探索
           </Typography>
           <Typography variant="body2" sx={{ mr: 2 }}>
-            歡迎，{user?.email}
+            歡迎，{user?.email || user?.username || '使用者'}
           </Typography>
           <Button color="inherit" onClick={logout}>
             登出
@@ -79,7 +89,7 @@ const DashboardPage = () => {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4, mx: 'auto' }}>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
@@ -99,9 +109,26 @@ const DashboardPage = () => {
           <Box sx={{ flex: { md: 1 } }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6">
-                我的地點 ({locations.length})
+                我的地點 ({filteredLocations.length})
               </Typography>
             </Box>
+
+            {/* 搜尋框 */}
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="搜尋地點名稱或地址..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ mb: 2 }}
+            />
 
             {loading ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -109,16 +136,16 @@ const DashboardPage = () => {
               </Box>
             ) : (
               <Box sx={{ maxHeight: '400px', overflow: 'auto' }}>
-                {locations.length === 0 ? (
+                {filteredLocations.length === 0 ? (
                   <Card>
                     <CardContent>
                       <Typography color="text.secondary" textAlign="center">
-                        還沒有地點，點擊右下角按鈕新增第一個地點吧！
+                        {searchQuery ? '找不到符合搜尋條件的地點' : '還沒有地點，點擊右下角按鈕新增第一個地點吧！'}
                       </Typography>
                     </CardContent>
                   </Card>
                 ) : (
-                  locations.map((location) => (
+                  filteredLocations.map((location) => (
                     <Card key={location.id} sx={{ mb: 2 }}>
                       <CardContent>
                         <Typography variant="h6" component="div" gutterBottom>

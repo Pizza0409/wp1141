@@ -12,10 +12,12 @@ export const initializeDatabase = (): Promise<void> => {
       db.run(`
         CREATE TABLE IF NOT EXISTS users (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
-          email TEXT UNIQUE NOT NULL,
+          email TEXT UNIQUE,
+          username TEXT UNIQUE,
           password TEXT NOT NULL,
           createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+          updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+          CHECK (email IS NOT NULL OR username IS NOT NULL)
         )
       `, (err) => {
         if (err) {
@@ -60,7 +62,38 @@ export const initializeDatabase = (): Promise<void> => {
           return;
         }
         console.log('✅ Database indexes created/verified');
-        resolve();
+        
+        // 建立訪客帳號
+        db.get('SELECT * FROM users WHERE email = ?', ['guest@example.com'], (err, row) => {
+          if (err) {
+            console.error('Error checking guest user:', err);
+            reject(err);
+            return;
+          }
+          
+          if (!row) {
+            // 建立訪客帳號
+            const bcrypt = require('bcryptjs');
+            const hashedPassword = bcrypt.hashSync('guest123', 12);
+            
+            db.run(
+              'INSERT INTO users (email, password) VALUES (?, ?)',
+              ['guest@example.com', hashedPassword],
+              (err) => {
+                if (err) {
+                  console.error('Error creating guest user:', err);
+                  reject(err);
+                  return;
+                }
+                console.log('✅ Guest user created');
+                resolve();
+              }
+            );
+          } else {
+            console.log('✅ Guest user already exists');
+            resolve();
+          }
+        });
       });
     });
   });

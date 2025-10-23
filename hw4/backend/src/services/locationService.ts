@@ -164,8 +164,10 @@ export class LocationService {
   }
 
   private static async getCoordinatesFromAddress(address: string): Promise<{ lat: number; lng: number }> {
-    if (!this.GOOGLE_MAPS_API_KEY) {
-      throw new Error('Google Maps API key not configured');
+    if (!this.GOOGLE_MAPS_API_KEY || this.GOOGLE_MAPS_API_KEY === 'your-google-maps-api-key-here') {
+      // 如果沒有設定 API 金鑰，使用台灣的預設座標
+      console.warn('Google Maps API key not configured, using default coordinates');
+      return { lat: 25.0330, lng: 121.5654 }; // 台北 101 的座標
     }
 
     try {

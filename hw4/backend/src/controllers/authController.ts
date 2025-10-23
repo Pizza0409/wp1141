@@ -13,9 +13,9 @@ export const register = async (req: Request, res: Response) => {
       });
     }
 
-    const { email, password } = req.body;
+    const { emailOrUsername, password } = req.body;
 
-    const result = await AuthService.register(email, password);
+    const result = await AuthService.register(emailOrUsername, password);
     
     res.status(201).json({
       message: 'User registered successfully',
@@ -45,9 +45,9 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    const { email, password } = req.body;
+    const { emailOrUsername, password } = req.body;
 
-    const result = await AuthService.login(email, password);
+    const result = await AuthService.login(emailOrUsername, password);
     
     res.json({
       message: 'Login successful',
@@ -73,20 +73,18 @@ export const logout = async (req: Request, res: Response) => {
 
 // 驗證中介軟體
 export const validateRegister = [
-  body('email')
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Valid email is required'),
+  body('emailOrUsername')
+    .notEmpty()
+    .withMessage('Email or username is required'),
   body('password')
     .isLength({ min: 6 })
     .withMessage('Password must be at least 6 characters long')
 ];
 
 export const validateLogin = [
-  body('email')
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Valid email is required'),
+  body('emailOrUsername')
+    .notEmpty()
+    .withMessage('Email or username is required'),
   body('password')
     .notEmpty()
     .withMessage('Password is required')

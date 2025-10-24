@@ -34,6 +34,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
+  const placeInfoWindowRef = useRef<any>(null);
   const [mapError, setMapError] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchResult, setSearchResult] = useState<any>(null);
@@ -86,6 +87,22 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
       if (tempInfoWindow) {
         tempInfoWindow.close();
         setTempInfoWindow(null);
+      }
+    };
+
+    (window as any).closeSearchInfoWindow = () => {
+      // 清除搜尋結果標記和 InfoWindow
+      if (searchResult) {
+        searchResult.setMap(null);
+        setSearchResult(null);
+      }
+    };
+
+    (window as any).closePlaceInfoWindow = () => {
+      // 關閉地標 InfoWindow
+      if (placeInfoWindowRef.current) {
+        placeInfoWindowRef.current.close();
+        placeInfoWindowRef.current = null;
       }
     };
 
@@ -306,7 +323,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
                         ➕ 新增到我的清單
                       </button>
                       <button 
-                        onclick="infoWindow.close()"
+                        onclick="window.closePlaceInfoWindow()"
                         style="
                           background: #666; 
                           color: white; 
@@ -326,6 +343,8 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
                 `,
               });
               
+              // Store the InfoWindow in ref for proper closing
+              placeInfoWindowRef.current = infoWindow;
               infoWindow.setPosition(place.geometry.location);
               infoWindow.open(mapInstanceRef.current);
             }
@@ -362,11 +381,18 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
       if (tempInfoWindow) {
         tempInfoWindow.close();
       }
+      // 清理地標 InfoWindow
+      if (placeInfoWindowRef.current) {
+        placeInfoWindowRef.current.close();
+        placeInfoWindowRef.current = null;
+      }
       // 清理全域函數
       delete (window as any).addLocationFromMap;
       delete (window as any).addLocationFromClick;
       delete (window as any).cancelTempMarker;
       delete (window as any).toggleAddingMode;
+      delete (window as any).closeSearchInfoWindow;
+      delete (window as any).closePlaceInfoWindow;
     };
   }, [locations, onLocationSelect, onAddLocation, isAddingMode]);
 
@@ -440,7 +466,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
                   ➕ 新增到我的清單
                 </button>
                 <button 
-                  onclick="infoWindow.close()"
+                  onclick="window.closeSearchInfoWindow()"
                   style="
                     background: #666; 
                     color: white; 

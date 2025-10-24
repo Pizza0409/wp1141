@@ -18,9 +18,12 @@ interface LocationFormDialogProps {
   onSubmit: (data: CreateLocationRequest | UpdateLocationRequest) => Promise<void>;
   location?: Location | null;
   prefilledData?: {
+    name?: string;
     address: string;
     latitude: number;
     longitude: number;
+    rating?: number;
+    notes?: string;
   } | null;
   title: string;
 }
@@ -34,10 +37,10 @@ const LocationFormDialog: React.FC<LocationFormDialogProps> = ({
   title,
 }) => {
   const [formData, setFormData] = useState({
-    name: location?.name || '',
+    name: location?.name || prefilledData?.name || '',
     address: location?.address || prefilledData?.address || '',
-    rating: location?.rating || 3,
-    notes: location?.notes || '',
+    rating: location?.rating || prefilledData?.rating || 3,
+    notes: location?.notes || prefilledData?.notes || '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -75,10 +78,10 @@ const LocationFormDialog: React.FC<LocationFormDialogProps> = ({
       await onSubmit(submitData);
       onClose();
       setFormData({
-        name: '',
-        address: '',
-        rating: 3,
-        notes: '',
+        name: location?.name || prefilledData?.name || '',
+        address: location?.address || prefilledData?.address || '',
+        rating: location?.rating || prefilledData?.rating || 3,
+        notes: location?.notes || prefilledData?.notes || '',
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : '操作失敗');
@@ -91,10 +94,10 @@ const LocationFormDialog: React.FC<LocationFormDialogProps> = ({
     if (!loading) {
       onClose();
       setFormData({
-        name: location?.name || '',
+        name: location?.name || prefilledData?.name || '',
         address: location?.address || prefilledData?.address || '',
-        rating: location?.rating || 3,
-        notes: location?.notes || '',
+        rating: location?.rating || prefilledData?.rating || 3,
+        notes: location?.notes || prefilledData?.notes || '',
       });
       setError('');
     }

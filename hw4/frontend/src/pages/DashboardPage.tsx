@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-  Container,
   AppBar,
   Toolbar,
   Typography,
@@ -13,12 +12,10 @@ import {
   Rating,
   Alert,
   CircularProgress,
-  Fab,
   TextField,
   InputAdornment,
 } from '@mui/material';
 import {
-  Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   LocationOn as LocationIcon,
@@ -37,9 +34,12 @@ const DashboardPage = () => {
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [prefilledLocationData, setPrefilledLocationData] = useState<{
+    name?: string;
     address: string;
     latitude: number;
     longitude: number;
+    rating?: number;
+    notes?: string;
   } | null>(null);
 
   const handleCreateLocation = async (data: CreateLocationRequest) => {
@@ -69,11 +69,33 @@ const DashboardPage = () => {
     setPrefilledLocationData(null);
   };
 
-  const handleAddFromMap = (locationData: {
+  const handleAddFromMap = async (locationData: {
+    name?: string;
     address: string;
     latitude: number;
     longitude: number;
+    rating?: number;
+    notes?: string;
   }) => {
+    // If all required data is provided, create location directly
+    if (locationData.name && locationData.rating !== undefined) {
+      try {
+        await createLocation({
+          name: locationData.name,
+          address: locationData.address,
+          latitude: locationData.latitude,
+          longitude: locationData.longitude,
+          rating: locationData.rating,
+          notes: locationData.notes || ''
+        });
+        return;
+      } catch (error) {
+        console.error('Failed to create location:', error);
+        // Fall through to open dialog
+      }
+    }
+    
+    // Otherwise, open dialog with prefilled data
     setPrefilledLocationData(locationData);
     setFormDialogOpen(true);
   };
@@ -110,9 +132,15 @@ const DashboardPage = () => {
         justifyContent: 'center', 
         alignItems: 'flex-start',
         bgcolor: 'background.default',
-        py: 4
+        py: 4,
+        px: 2
       }}>
-        <Container maxWidth="lg" sx={{ width: '100%', px: 2 }}>
+        <Box sx={{ 
+          width: '100%', 
+          maxWidth: '100%',
+          mx: 0,
+          px: { xs: 1, sm: 2, md: 3 }
+        }}>
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
               {error}
@@ -121,14 +149,17 @@ const DashboardPage = () => {
 
           <Box sx={{ 
             display: 'flex', 
-            flexDirection: { xs: 'column', md: 'row' }, 
+            flexDirection: { xs: 'column', lg: 'row' }, 
             gap: 3,
-            justifyContent: 'center',
-            alignItems: 'flex-start',
-            maxWidth: '100%'
+            width: '100%',
+            minHeight: 'calc(100vh - 120px)'
           }}>
           {/* 地圖區域 */}
-          <Box sx={{ flex: { md: 2 } }}>
+          <Box sx={{ 
+            flex: { lg: 2 },
+            minWidth: 0,
+            height: { xs: '400px', lg: '600px' }
+          }}>
             <MapComponent
               locations={locations}
               onLocationSelect={handleLocationSelect}
@@ -137,7 +168,15 @@ const DashboardPage = () => {
           </Box>
 
           {/* 地點列表區域 */}
-          <Box sx={{ flex: { md: 1 } }}>
+          <Box sx={{ 
+            flex: { lg: 1 },
+            minWidth: 0,
+            height: { xs: 'auto', lg: '600px' },
+            maxHeight: { xs: '400px', lg: '600px' },
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6">
                 我的地點 ({filteredLocations.length})
@@ -166,7 +205,11 @@ const DashboardPage = () => {
                 <CircularProgress />
               </Box>
             ) : (
-              <Box sx={{ maxHeight: '400px', overflow: 'auto' }}>
+              <Box sx={{ 
+                flex: 1,
+                overflow: 'auto',
+                minHeight: 0
+              }}>
                 {filteredLocations.length === 0 ? (
                   <Card>
                     <CardContent>
@@ -220,18 +263,9 @@ const DashboardPage = () => {
             )}
           </Box>
         </Box>
-        </Container>
+        </Box>
       </Box>
 
-      {/* 新增地點按鈕 */}
-      <Fab
-        color="primary"
-        aria-label="add"
-        sx={{ position: 'fixed', bottom: 16, right: 16 }}
-        onClick={() => setFormDialogOpen(true)}
-      >
-        <AddIcon />
-      </Fab>
 
       {/* 地點表單對話框 */}
       <LocationFormDialog

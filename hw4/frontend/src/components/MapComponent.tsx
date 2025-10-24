@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Box, Typography, Alert, TextField, Button, Paper } from '@mui/material';
-import { Search as SearchIcon } from '@mui/icons-material';
+import { Box, Typography, Alert, TextField, Button, Paper, Fab } from '@mui/material';
+import { Search as SearchIcon, Add as AddIcon, Close as CloseIcon } from '@mui/icons-material';
 
 declare global {
   interface Window {
@@ -21,9 +21,12 @@ interface MapComponentProps {
   }>;
   onLocationSelect?: (location: any) => void;
   onAddLocation?: (locationData: {
+    name?: string;
     address: string;
     latitude: number;
     longitude: number;
+    rating?: number;
+    notes?: string;
   }) => void;
 }
 
@@ -34,27 +37,79 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
   const [mapError, setMapError] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchResult, setSearchResult] = useState<any>(null);
+  const [tempMarker, setTempMarker] = useState<any>(null);
+  const [tempInfoWindow, setTempInfoWindow] = useState<any>(null);
+  const [isAddingMode, setIsAddingMode] = useState(false);
 
   useEffect(() => {
     // 設定全域函數供 InfoWindow 按鈕使用
-    (window as any).addLocationFromMap = (address: string, lat: number, lng: number) => {
+    (window as any).addLocationFromMap = (name: string, address: string, lat: number, lng: number, rating: number, notes: string = '') => {
       if (onAddLocation) {
-        onAddLocation({ address, latitude: lat, longitude: lng });
+        onAddLocation({ name, address, latitude: lat, longitude: lng, rating, notes });
+      }
+    };
+
+    (window as any).addLocationFromClick = (name: string, address: string, lat: number, lng: number, rating: number) => {
+      if (onAddLocation) {
+        onAddLocation({ name, address, latitude: lat, longitude: lng, rating });
+      }
+      // Clear temporary marker after adding
+      if (tempMarker) {
+        tempMarker.setMap(null);
+        setTempMarker(null);
+      }
+      if (tempInfoWindow) {
+        tempInfoWindow.close();
+        setTempInfoWindow(null);
+      }
+    };
+
+    (window as any).cancelTempMarker = () => {
+      if (tempMarker) {
+        tempMarker.setMap(null);
+        setTempMarker(null);
+      }
+      if (tempInfoWindow) {
+        tempInfoWindow.close();
+        setTempInfoWindow(null);
+      }
+      setIsAddingMode(false);
+    };
+
+    (window as any).toggleAddingMode = () => {
+      setIsAddingMode(!isAddingMode);
+      // 清除現有的臨時標記
+      if (tempMarker) {
+        tempMarker.setMap(null);
+        setTempMarker(null);
+      }
+      if (tempInfoWindow) {
+        tempInfoWindow.close();
+        setTempInfoWindow(null);
       }
     };
 
     const initMap = () => {
+      console.log('Initializing map...', { mapRef: mapRef.current, google: !!window.google });
       if (!mapRef.current || !window.google) {
         setMapError('Google Maps API not loaded');
         return;
       }
 
       // 初始化地圖，以台灣為中心
-      mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-        center: { lat: 23.9739, lng: 120.9820 }, // 台灣中心點
-        zoom: 8,
-        mapTypeId: window.google.maps.MapTypeId.ROADMAP,
-      });
+      try {
+        mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+          center: { lat: 23.9739, lng: 120.9820 }, // 台灣中心點
+          zoom: 8,
+          mapTypeId: window.google.maps.MapTypeId.ROADMAP,
+          clickableIcons: true, // 啟用點擊地標功能
+        });
+        console.log('Map initialized successfully');
+      } catch (error) {
+        console.error('Failed to initialize map:', error);
+        setMapError('Failed to initialize map: ' + (error instanceof Error ? error.message : String(error)));
+        return;
+      }
 
       // 清除現有標記
       markersRef.current.forEach(marker => marker.setMap(null));
@@ -103,6 +158,180 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
         });
         mapInstanceRef.current.fitBounds(bounds);
       }
+
+      // 添加地圖點擊事件 - 只在添加模式下響應
+      mapInstanceRef.current.addListener('click', (event: any) => {
+        if (!isAddingMode) return;
+        
+        const lat = event.latLng.lat();
+        const lng = event.latLng.lng();
+        
+        // 清除之前的臨時標記
+        if (tempMarker) {
+          tempMarker.setMap(null);
+        }
+        if (tempInfoWindow) {
+          tempInfoWindow.close();
+        }
+        
+        // 創建臨時標記
+        const marker = new window.google.maps.Marker({
+          position: { lat, lng },
+          map: mapInstanceRef.current,
+          icon: {
+            url: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+          }
+        });
+        
+        setTempMarker(marker);
+        
+        // 反向地理編碼獲取地址
+        const geocoder = new window.google.maps.Geocoder();
+        geocoder.geocode({ location: { lat, lng } }, (results: any, status: any) => {
+          if (status === 'OK' && results[0]) {
+            const address = results[0].formatted_address;
+            
+            // 創建資訊視窗
+            const infoWindow = new window.google.maps.InfoWindow({
+              content: `
+                <div style="padding: 10px; min-width: 250px;">
+                  <h3 style="margin: 0 0 10px 0; color: #1976d2;">新增地點</h3>
+                  <p style="margin: 5px 0;"><strong>地址:</strong> ${address}</p>
+                  <div style="margin: 10px 0;">
+                    <label style="display: block; margin-bottom: 5px;"><strong>地點名稱:</strong></label>
+                    <input type="text" id="locationName" placeholder="輸入地點名稱..." style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
+                  </div>
+                  <div style="margin: 10px 0;">
+                    <label style="display: block; margin-bottom: 5px;"><strong>評分:</strong></label>
+                    <select id="locationRating" style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
+                      <option value="1">1 星</option>
+                      <option value="2">2 星</option>
+                      <option value="3" selected>3 星</option>
+                      <option value="4">4 星</option>
+                      <option value="5">5 星</option>
+                    </select>
+                  </div>
+                  <div style="margin-top: 15px;">
+                    <button 
+                      onclick="const name = document.getElementById('locationName').value; const rating = parseInt(document.getElementById('locationRating').value); if(name.trim()) { window.addLocationFromClick(name.trim(), '${address}', ${lat}, ${lng}, rating); } else { alert('請輸入地點名稱'); }"
+                      style="
+                        background: #1976d2; 
+                        color: white; 
+                        border: none; 
+                        padding: 8px 16px; 
+                        border-radius: 4px; 
+                        cursor: pointer; 
+                        margin-right: 10px;
+                        font-size: 14px;
+                      "
+                      onmouseover="this.style.background='#1565c0'"
+                      onmouseout="this.style.background='#1976d2'"
+                    >
+                      ➕ 新增到我的清單
+                    </button>
+                    <button 
+                      onclick="window.cancelTempMarker()"
+                      style="
+                        background: #666; 
+                        color: white; 
+                        border: none; 
+                        padding: 8px 16px; 
+                        border-radius: 4px; 
+                        cursor: pointer; 
+                        font-size: 14px;
+                      "
+                      onmouseover="this.style.background='#555'"
+                      onmouseout="this.style.background='#666'"
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              `,
+            });
+            
+            setTempInfoWindow(infoWindow);
+            infoWindow.open(mapInstanceRef.current, marker);
+          }
+        });
+      });
+
+      // 添加地標點擊事件處理
+      mapInstanceRef.current.addListener('click', (event: any) => {
+        // 檢查是否點擊了地標
+        if (event.placeId) {
+          const service = new window.google.maps.places.PlacesService(mapInstanceRef.current);
+          service.getDetails({
+            placeId: event.placeId,
+            fields: ['name', 'formatted_address', 'geometry', 'rating', 'types']
+          }, (place: any, status: any) => {
+            if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
+              // 創建地標資訊視窗
+              const infoWindow = new window.google.maps.InfoWindow({
+                content: `
+                  <div style="padding: 10px; min-width: 250px;">
+                    <h3 style="margin: 0 0 10px 0; color: #1976d2;">${place.name}</h3>
+                    <p style="margin: 5px 0;"><strong>地址:</strong> ${place.formatted_address}</p>
+                    ${place.rating ? `<p style="margin: 5px 0;"><strong>Google 評分:</strong> ${place.rating}/5</p>` : ''}
+                    <div style="margin: 10px 0;">
+                      <label style="display: block; margin-bottom: 5px;"><strong>我的評分:</strong></label>
+                      <select id="placeRating" style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
+                        <option value="1">1 星</option>
+                        <option value="2">2 星</option>
+                        <option value="3" selected>3 星</option>
+                        <option value="4">4 星</option>
+                        <option value="5">5 星</option>
+                      </select>
+                    </div>
+                    <div style="margin: 10px 0;">
+                      <label style="display: block; margin-bottom: 5px;"><strong>備註:</strong></label>
+                      <textarea id="placeNotes" placeholder="添加備註..." style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 3px; height: 60px;"></textarea>
+                    </div>
+                    <div style="margin-top: 15px;">
+                      <button 
+                        onclick="const rating = parseInt(document.getElementById('placeRating').value); const notes = document.getElementById('placeNotes').value; window.addLocationFromMap('${place.name}', '${place.formatted_address}', ${place.geometry.location.lat()}, ${place.geometry.location.lng()}, rating, notes);"
+                        style="
+                          background: #1976d2; 
+                          color: white; 
+                          border: none; 
+                          padding: 8px 16px; 
+                          border-radius: 4px; 
+                          cursor: pointer; 
+                          margin-right: 10px;
+                          font-size: 14px;
+                        "
+                        onmouseover="this.style.background='#1565c0'"
+                        onmouseout="this.style.background='#1976d2'"
+                      >
+                        ➕ 新增到我的清單
+                      </button>
+                      <button 
+                        onclick="infoWindow.close()"
+                        style="
+                          background: #666; 
+                          color: white; 
+                          border: none; 
+                          padding: 8px 16px; 
+                          border-radius: 4px; 
+                          cursor: pointer; 
+                          font-size: 14px;
+                        "
+                        onmouseover="this.style.background='#555'"
+                        onmouseout="this.style.background='#666'"
+                      >
+                        關閉
+                      </button>
+                    </div>
+                  </div>
+                `,
+              });
+              
+              infoWindow.setPosition(place.geometry.location);
+              infoWindow.open(mapInstanceRef.current);
+            }
+          });
+        }
+      });
     };
 
     // 檢查 Google Maps API 是否已載入
@@ -126,10 +355,20 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
     return () => {
       // 清理標記
       markersRef.current.forEach(marker => marker.setMap(null));
+      // 清理臨時標記
+      if (tempMarker) {
+        tempMarker.setMap(null);
+      }
+      if (tempInfoWindow) {
+        tempInfoWindow.close();
+      }
       // 清理全域函數
       delete (window as any).addLocationFromMap;
+      delete (window as any).addLocationFromClick;
+      delete (window as any).cancelTempMarker;
+      delete (window as any).toggleAddingMode;
     };
-  }, [locations, onLocationSelect, onAddLocation]);
+  }, [locations, onLocationSelect, onAddLocation, isAddingMode]);
 
   const handleSearch = () => {
     if (!searchQuery.trim() || !window.google || !mapInstanceRef.current) {
@@ -165,26 +404,58 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
         // 顯示資訊視窗
         const infoWindow = new window.google.maps.InfoWindow({
           content: `
-            <div style="padding: 10px; min-width: 200px;">
+            <div style="padding: 10px; min-width: 250px;">
               <h3 style="margin: 0 0 10px 0; color: #1976d2;">搜尋結果</h3>
               <p style="margin: 5px 0;"><strong>地址:</strong> ${results[0].formatted_address}</p>
-              <button 
-                onclick="window.addLocationFromMap('${results[0].formatted_address}', ${location.lat()}, ${location.lng()})"
-                style="
-                  background: #1976d2; 
-                  color: white; 
-                  border: none; 
-                  padding: 8px 16px; 
-                  border-radius: 4px; 
-                  cursor: pointer; 
-                  margin-top: 10px;
-                  font-size: 14px;
-                "
-                onmouseover="this.style.background='#1565c0'"
-                onmouseout="this.style.background='#1976d2'"
-              >
-                ➕ 新增到我的清單
-              </button>
+              <div style="margin: 10px 0;">
+                <label style="display: block; margin-bottom: 5px;"><strong>地點名稱:</strong></label>
+                <input type="text" id="searchLocationName" placeholder="輸入地點名稱..." style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
+              </div>
+              <div style="margin: 10px 0;">
+                <label style="display: block; margin-bottom: 5px;"><strong>評分:</strong></label>
+                <select id="searchLocationRating" style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
+                  <option value="1">1 星</option>
+                  <option value="2">2 星</option>
+                  <option value="3" selected>3 星</option>
+                  <option value="4">4 星</option>
+                  <option value="5">5 星</option>
+                </select>
+              </div>
+              <div style="margin-top: 15px;">
+                <button 
+                  onclick="const name = document.getElementById('searchLocationName').value; const rating = parseInt(document.getElementById('searchLocationRating').value); if(name.trim()) { window.addLocationFromMap(name.trim(), '${results[0].formatted_address}', ${location.lat()}, ${location.lng()}, rating); } else { alert('請輸入地點名稱'); }"
+                  style="
+                    background: #1976d2; 
+                    color: white; 
+                    border: none; 
+                    padding: 8px 16px; 
+                    border-radius: 4px; 
+                    cursor: pointer; 
+                    margin-right: 10px;
+                    font-size: 14px;
+                  "
+                  onmouseover="this.style.background='#1565c0'"
+                  onmouseout="this.style.background='#1976d2'"
+                >
+                  ➕ 新增到我的清單
+                </button>
+                <button 
+                  onclick="infoWindow.close()"
+                  style="
+                    background: #666; 
+                    color: white; 
+                    border: none; 
+                    padding: 8px 16px; 
+                    border-radius: 4px; 
+                    cursor: pointer; 
+                    font-size: 14px;
+                  "
+                  onmouseover="this.style.background='#555'"
+                  onmouseout="this.style.background='#666'"
+                >
+                  關閉
+                </button>
+              </div>
             </div>
           `,
         });
@@ -211,7 +482,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
   }
 
   return (
-    <Box>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <Typography variant="h6" gutterBottom>
         地點地圖
       </Typography>
@@ -245,12 +516,63 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
       <Box
         ref={mapRef}
         sx={{
-          height: '400px',
+          height: { xs: '400px', lg: '600px' },
           width: '100%',
           borderRadius: 1,
           border: '1px solid #ddd',
+          position: 'relative',
+          flex: 1,
+          minHeight: 0
         }}
       />
+      
+      {/* 添加模式按鈕 */}
+      <Fab
+        color={isAddingMode ? "secondary" : "primary"}
+        aria-label="add"
+        sx={{ 
+          position: 'absolute', 
+          bottom: 16, 
+          right: 16,
+          zIndex: 1000
+        }}
+        onClick={() => {
+          setIsAddingMode(!isAddingMode);
+          // 清除現有的臨時標記
+          if (tempMarker) {
+            tempMarker.setMap(null);
+            setTempMarker(null);
+          }
+          if (tempInfoWindow) {
+            tempInfoWindow.close();
+            setTempInfoWindow(null);
+          }
+        }}
+      >
+        {isAddingMode ? <CloseIcon /> : <AddIcon />}
+      </Fab>
+      
+      {/* 添加模式提示 */}
+      {isAddingMode && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 16,
+            left: 16,
+            right: 16,
+            bgcolor: 'primary.main',
+            color: 'white',
+            p: 2,
+            borderRadius: 1,
+            zIndex: 1000,
+            textAlign: 'center'
+          }}
+        >
+          <Typography variant="body2">
+            📍 點擊地圖上的任意位置來新增地點
+          </Typography>
+        </Box>
+      )}
     </Box>
   );
 };

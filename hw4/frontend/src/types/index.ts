@@ -20,6 +20,8 @@ export interface Location {
 export interface CreateLocationRequest {
   name: string;
   address: string;
+  latitude: number;
+  longitude: number;
   rating: number;
   notes: string;
 }

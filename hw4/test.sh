@@ -1,94 +1,135 @@
 #!/bin/bash
 
-# 測試腳本 - 驗證 Location Explorer 應用
-
-echo "🚀 Location Explorer 測試腳本"
-echo "================================"
+echo "🚀 Starting Location Explorer Fullstack Application..."
 
 # 檢查 Node.js 和 npm
-echo "📋 檢查環境..."
+echo "📋 Checking environment..."
 if ! command -v node &> /dev/null; then
-    echo "❌ Node.js 未安裝"
+    echo "❌ Node.js is not installed!"
+    echo ""
+    echo "請安裝 Node.js: https://nodejs.org/"
     exit 1
 fi
 
 if ! command -v npm &> /dev/null; then
-    echo "❌ npm 未安裝"
+    echo "❌ npm is not installed!"
     exit 1
 fi
 
-echo "✅ Node.js 版本: $(node --version)"
-echo "✅ npm 版本: $(npm --version)"
+echo "✅ Node.js version: $(node --version)"
+echo "✅ npm version: $(npm --version)"
 
-# 檢查後端
-echo ""
-echo "🔧 檢查後端..."
+# 後端相依性安裝
+echo "📦 Installing backend dependencies..."
 cd backend
-
-if [ ! -f "package.json" ]; then
-    echo "❌ 後端 package.json 不存在"
-    exit 1
-fi
-
 if [ ! -d "node_modules" ]; then
-    echo "⚠️  後端依賴未安裝，正在安裝..."
     npm install
 fi
 
 # 檢查環境變數
 if [ ! -f ".env" ]; then
-    echo "⚠️  後端 .env 不存在，請複製 env.example 並設定"
-    echo "   cp env.example .env"
-    echo "   然後編輯 .env 設定 Google Maps API 金鑰"
+    echo "⚠️  Backend .env not found, creating from example..."
+    if [ -f "env.example" ]; then
+        cp env.example .env
+        echo "✅ Created .env file, please edit it to set your Google Maps API key"
+    else
+        echo "❌ env.example not found, please create .env manually"
+        exit 1
+    fi
 fi
 
 # 測試後端編譯
-echo "🔨 測試後端編譯..."
+echo "🔨 Building backend..."
 if npm run build; then
-    echo "✅ 後端編譯成功"
+    echo "✅ Backend build successful"
 else
-    echo "❌ 後端編譯失敗"
+    echo "❌ Backend build failed"
     exit 1
 fi
+cd ..
 
-# 檢查前端
-echo ""
-echo "🎨 檢查前端..."
-cd ../frontend
-
-if [ ! -f "package.json" ]; then
-    echo "❌ 前端 package.json 不存在"
-    exit 1
-fi
-
+# 前端相依性安裝和構建
+echo "🎨 Building frontend..."
+cd frontend
 if [ ! -d "node_modules" ]; then
-    echo "⚠️  前端依賴未安裝，正在安裝..."
     npm install
 fi
 
 # 檢查環境變數
 if [ ! -f ".env" ]; then
-    echo "⚠️  前端 .env 不存在，請複製 env.example 並設定"
-    echo "   cp env.example .env"
-    echo "   然後編輯 .env 設定 Google Maps API 金鑰"
+    echo "⚠️  Frontend .env not found, creating from example..."
+    if [ -f "env.example" ]; then
+        cp env.example .env
+        echo "✅ Created .env file, please edit it to set your Google Maps API key"
+    else
+        echo "❌ env.example not found, please create .env manually"
+        exit 1
+    fi
 fi
 
 # 測試前端編譯
-echo "🔨 測試前端編譯..."
+echo "🔨 Building frontend..."
 if npm run build; then
-    echo "✅ 前端編譯成功"
+    echo "✅ Frontend build successful"
 else
-    echo "❌ 前端編譯失敗"
+    echo "❌ Frontend build failed"
     exit 1
 fi
+cd ..
+
+# 啟動後端（會服務前端靜態檔案）
+echo "🚀 Starting backend server..."
+cd backend
+npm run dev &
+BACKEND_PID=$!
+cd ..
+
+# 等待後端啟動
+echo "⏳ Waiting for backend to start..."
+sleep 5
+
+# 啟動前端
+echo "🎨 Starting frontend server..."
+cd frontend
+npm run dev &
+FRONTEND_PID=$!
+cd ..
+
+# 等待前端啟動
+sleep 3
 
 echo ""
-echo "🎉 所有檢查通過！"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅ Application started successfully!"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "📝 下一步："
-echo "1. 設定 Google Maps API 金鑰到前後端的 .env 檔案"
-echo "2. 啟動後端: cd backend && npm run dev"
-echo "3. 啟動前端: cd frontend && npm run dev"
-echo "4. 開啟瀏覽器訪問 http://localhost:5173"
+echo "📱 本地存取:  http://localhost:5173"
+echo "🔧 後端 API:  http://localhost:3000"
 echo ""
-echo "📚 詳細說明請參考 README.md"
+echo "💡 功能特色:"
+echo "  • 點擊地圖任意位置新增地點"
+echo "  • 搜尋地址並直接新增到清單"
+echo "  • 評分和備註功能"
+echo "  • 響應式設計，支援手機和桌面"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "按 Ctrl+C 停止所有服務"
+
+# 清理函式
+cleanup() {
+    echo ""
+    echo "🛑 Stopping services..."
+    kill $BACKEND_PID 2>/dev/null
+    kill $FRONTEND_PID 2>/dev/null
+    pkill -f "npm run dev" 2>/dev/null
+    pkill -f "vite" 2>/dev/null
+    pkill -f "ts-node" 2>/dev/null
+    echo "✅ All services stopped"
+    exit 0
+}
+
+trap cleanup INT TERM
+
+# 等待使用者中斷
+wait

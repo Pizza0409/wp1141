@@ -6,6 +6,7 @@ import { apiService } from '../services/apiService';
 interface AuthContextType {
   user: User | null;
   token: string | null;
+  isGuest: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -30,16 +31,19 @@ interface AuthProviderProps {
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 檢查本地儲存的認證資訊
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
+    // 檢查本地儲存的認證資訊（使用 sessionStorage）
+    const storedToken = sessionStorage.getItem('token');
+    const storedUser = sessionStorage.getItem('user');
+    const storedIsGuest = sessionStorage.getItem('isGuest') === 'true';
 
     if (storedToken && storedUser) {
       setToken(storedToken);
       setUser(JSON.parse(storedUser));
+      setIsGuest(storedIsGuest);
     }
     setLoading(false);
   }, []);
@@ -48,11 +52,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       const response = await apiService.login({ emailOrUsername, password });
       
+      const isGuestLogin = emailOrUsername === 'guest@example.com';
+      
       setToken(response.token);
       setUser(response.user);
+      setIsGuest(isGuestLogin);
       
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
+      sessionStorage.setItem('token', response.token);
+      sessionStorage.setItem('user', JSON.stringify(response.user));
+      sessionStorage.setItem('isGuest', isGuestLogin.toString());
     } catch (error) {
       console.error('Login failed:', error);
       throw error;
@@ -65,9 +73,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       setToken(response.token);
       setUser(response.user);
+      setIsGuest(false);
       
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
+      sessionStorage.setItem('token', response.token);
+      sessionStorage.setItem('user', JSON.stringify(response.user));
+      sessionStorage.setItem('isGuest', 'false');
     } catch (error) {
       console.error('Registration failed:', error);
       throw error;
@@ -75,16 +85,29 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const logout = () => {
+    const wasGuest = isGuest;
+    
+    // 清除 sessionStorage（包含認證資訊和訪客資料）
+    sessionStorage.clear();
+    
+    // 重置狀態
     setToken(null);
     setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    apiService.logout().catch(console.error);
+    setIsGuest(false);
+    
+    // 非訪客才調用後端 logout API
+    if (!wasGuest) {
+      apiService.logout().catch(console.error);
+    }
+    
+    // 強制重新載入到登入頁面
+    window.location.href = '/';
   };
 
   const value: AuthContextType = {
     user,
     token,
+    isGuest,
     login,
     register,
     logout,

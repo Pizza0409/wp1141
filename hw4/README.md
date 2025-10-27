@@ -45,7 +45,7 @@ hw4/
 - **Google Maps JavaScript API** - 地圖功能（Geocoding、Places）
 
 ### 後端
-- **Node.js** + **Express**を受くTypeScript 類型安全
+- **Node.js** + **Express** TypeScript 類型安全
 - **SQLite** - 資料庫
 - **JWT** - 認證機制
 - **bcryptjs** - 密碼雜湊
@@ -231,7 +231,7 @@ npm run dev
   "name": "台灣大學",
   "address": "台北市大安區羅斯福路四段1號",
   "rating": 5,
-  "notes": "我的母校"
+  "notes": "我的學校"
 }
 ```
 
@@ -274,9 +274,36 @@ npm run dev
 ## 🔒 安全性
 
 ### 認證機制：JWT
-- 使用 **JWT (JSON Web Token)** 進行使用者認證
-- Token 有效期：7 天
-- 儲存方式：前端 SessionStorage
+
+本專案採用 **JWT (JSON Web Token)** 認證機制，而非 Session + Cookie。
+
+#### 為何選擇 JWT？
+
+1. **無狀態性**：JWT 是自包含的（self-contained），無需伺服器端儲存 session，適合前後端分離架構
+2. **可擴展性**：無需維護 session 資料庫，適合多伺服器部署
+3. **跨域支援**：Token 在 HTTP header 中傳遞，避免 Cookie 跨域問題
+4. **前端友好**：React SPA 更容易處理 Token，可儲存在 SessionStorage 或 LocalStorage
+
+#### 實作細節
+
+- **Token 生成**：登入成功後，後端使用 `jsonwebtoken` 生成 JWT，包含使用者 ID 和 emailOrUsername
+- **Token 儲存**：前端將 Token 存放在 `SessionStorage` 中（頁面關閉後自動清除）
+- **Token 驗證**：所有受保護的 API 請求在 HTTP Header 中帶上 `Authorization: Bearer <token>`
+- **Token 有效期**：7 天，到期後需重新登入
+- **登出機制**：前端清除 SessionStorage 中的 Token
+
+#### 與 Session + Cookie 的比較
+
+| 特性 | JWT | Session + Cookie |
+|------|-----|------------------|
+| 伺服器儲存 | ❌ 不需要 | ✅ 需要 session store |
+| 無狀態 | ✅ 是 | ❌ 否 |
+| 可擴展性 | ✅ 高 | ⚠️ 中等 |
+| 安全性 | ✅ Token 簽名驗證 | ✅ Cookie HttpOnly |
+| 跨模組 | ✅ 容易 | ⚠️ 需要共享 session |
+| 實現複雜度 | ⚠️ 中等 | ✅ 簡單 |
+
+本專案選擇 JWT 主要考量前後端分離架構和未來的可擴展性需求。
 
 ### 密碼安全
 - 使用 **bcryptjs** 進行密碼雜湊

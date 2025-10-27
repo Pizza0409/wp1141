@@ -243,6 +243,16 @@ npm run dev
 
 ## 💾 資料庫結構
 
+### 資料持久化
+
+本專案使用 **SQLite** 資料庫持久化儲存所有資料：
+- **持久化特性**：所有使用者資料和地點資料都儲存在 `backend/database/locations.db` 檔案中
+- **資料保留**：伺服器重啟後，所有先前建立的資料都會保留
+- **自動初始化**：首次啟動時會自動建立資料庫和表格
+- **資料完整性**：使用外鍵約束（FOREIGN KEY）確保資料一致性
+
+⚠️ **注意**：如果需要清除所有資料重新開始測試，請手動刪除 `backend/database/locations.db` 檔案後重新啟動伺服器。
+
 ### Users 表
 
 | 欄位 | 類型 | 約束 | 說明 |
@@ -389,6 +399,8 @@ npm run preview   # 預覽建置結果
 - [x] 資料庫：SQLite
 - [x] 儲存使用者登入資訊
 - [x] 儲存主要資源資料
+- [x] 資料持久化：伺服器重啟後資料保留
+- [x] 核心資源名稱、地點/座標、評分、備註等完整欄位
 
 ### ✅ 安全性需求
 - [x] 帳號欄位：email/username + password
@@ -427,8 +439,9 @@ npm run preview   # 預覽建置結果
 - 檢查 API 配額是否用完
 
 #### 5. 資料庫錯誤
-- 刪除 backend/database/locations.db 讓程式自動重建
 - 確認資料庫檔案權限正確
+- 如果資料庫損壞，可刪除 `backend/database/locations.db` 讓程式自動重建（⚠️ 會清除所有資料）
+- 資料庫檔案預設位置：`backend/database/locations.db`
 
 #### 6. Port 衝突
 - 如果 frontend port 不是 5173，需調整 backend CORS 設定

@@ -4,14 +4,17 @@ import fs from 'fs';
 
 const dbPath = process.env.DATABASE_PATH || './database/locations.db';
 
-// 每次啟動時刪除舊資料庫（確保測試從乾淨狀態開始）
-if (fs.existsSync(dbPath)) {
-  try {
-    fs.unlinkSync(dbPath);
-    console.log('🗑️  Previous database deleted');
-  } catch (error) {
-    console.error('Error deleting database:', error);
-  }
+// 確保資料庫目錄存在
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+  console.log('📁 Database directory created');
+}
+
+// 檢查資料庫是否已存在
+const dbExists = fs.existsSync(dbPath);
+if (!dbExists) {
+  console.log('📝 Creating new database...');
 }
 
 export const db = new sqlite3.Database(dbPath);
@@ -109,3 +112,6 @@ export const initializeDatabase = (): Promise<void> => {
     });
   });
 };
+
+// 只有在資料庫剛建立時才需要初始化表格
+// 如果資料庫已存在，上面的 CREATE TABLE IF NOT EXISTS 會自動處理

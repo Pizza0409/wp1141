@@ -60,10 +60,10 @@ const RegisterPage = () => {
 
     try {
       await register(trimmedEmail, trimmedPassword);
-      navigate('/login');
+      // 註冊成功後直接跳轉到 dashboard，因為 register 函數已經設置了認證狀態
+      navigate('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : '註冊失敗');
-    } finally {
       setLoading(false);
     }
   };
@@ -91,7 +91,7 @@ const RegisterPage = () => {
           </Typography>
           
           {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
               {error}
             </Alert>
           )}

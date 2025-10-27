@@ -44,10 +44,19 @@ const LoginPage = () => {
 
     try {
       await login(trimmedEmail, trimmedPassword);
-      navigate('/dashboard');
+      // 使用 setTimeout 確保狀態更新後再導航
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 100);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
-    } finally {
+      // 確保錯誤訊息正確顯示
+      const errorMessage = err instanceof Error ? err.message : '登入失敗';
+      // 翻譯英文錯誤訊息
+      if (errorMessage === 'Invalid credentials' || errorMessage === '登入失敗，請檢查您的帳號密碼') {
+        setError('帳號或密碼錯誤');
+      } else {
+        setError(errorMessage);
+      }
       setLoading(false);
     }
   };
@@ -58,10 +67,12 @@ const LoginPage = () => {
 
     try {
       await login('guest@example.com', 'guest123');
-      navigate('/dashboard');
+      // 使用 setTimeout 確保狀態更新後再導航
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 100);
     } catch (err) {
       setError('訪客登入失敗，請稍後再試');
-    } finally {
       setLoading(false);
     }
   };
@@ -89,7 +100,7 @@ const LoginPage = () => {
           </Typography>
           
           {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
               {error}
             </Alert>
           )}

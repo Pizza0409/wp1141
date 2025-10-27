@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Box, Typography, Alert, TextField, Button, Paper, Fab } from '@mui/material';
-import { Search as SearchIcon, Add as AddIcon, Close as CloseIcon } from '@mui/icons-material';
+import { Box, Typography, Alert, TextField, Button, Paper } from '@mui/material';
+import { Search as SearchIcon } from '@mui/icons-material';
 
 declare global {
   interface Window {
@@ -35,12 +35,12 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const placeInfoWindowRef = useRef<any>(null);
+  const searchInfoWindowRef = useRef<any>(null);
   const [mapError, setMapError] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchResult, setSearchResult] = useState<any>(null);
   const [tempMarker, setTempMarker] = useState<any>(null);
   const [tempInfoWindow, setTempInfoWindow] = useState<any>(null);
-  const [isAddingMode, setIsAddingMode] = useState(false);
 
   useEffect(() => {
     // 設定全域函數供 InfoWindow 按鈕使用
@@ -74,27 +74,18 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
         tempInfoWindow.close();
         setTempInfoWindow(null);
       }
-      setIsAddingMode(false);
-    };
-
-    (window as any).toggleAddingMode = () => {
-      setIsAddingMode(!isAddingMode);
-      // 清除現有的臨時標記
-      if (tempMarker) {
-        tempMarker.setMap(null);
-        setTempMarker(null);
-      }
-      if (tempInfoWindow) {
-        tempInfoWindow.close();
-        setTempInfoWindow(null);
-      }
     };
 
     (window as any).closeSearchInfoWindow = () => {
-      // 清除搜尋結果標記和 InfoWindow
+      // 清除搜尋結果標記
       if (searchResult) {
         searchResult.setMap(null);
         setSearchResult(null);
+      }
+      // 關閉搜尋 InfoWindow
+      if (searchInfoWindowRef.current) {
+        searchInfoWindowRef.current.close();
+        searchInfoWindowRef.current = null;
       }
     };
 
@@ -176,9 +167,12 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
         mapInstanceRef.current.fitBounds(bounds);
       }
 
-      // 添加地圖點擊事件 - 只在添加模式下響應
+      // 添加地圖點擊事件 - 直接響應點擊
       mapInstanceRef.current.addListener('click', (event: any) => {
-        if (!isAddingMode) return;
+        // 如果點擊的是地標，會有 placeId，由另一個 listener 處理
+        if (event.placeId) {
+          return;
+        }
         
         const lat = event.latLng.lat();
         const lng = event.latLng.lng();
@@ -386,15 +380,19 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
         placeInfoWindowRef.current.close();
         placeInfoWindowRef.current = null;
       }
+      // 清理搜尋 InfoWindow
+      if (searchInfoWindowRef.current) {
+        searchInfoWindowRef.current.close();
+        searchInfoWindowRef.current = null;
+      }
       // 清理全域函數
       delete (window as any).addLocationFromMap;
       delete (window as any).addLocationFromClick;
       delete (window as any).cancelTempMarker;
-      delete (window as any).toggleAddingMode;
       delete (window as any).closeSearchInfoWindow;
       delete (window as any).closePlaceInfoWindow;
     };
-  }, [locations, onLocationSelect, onAddLocation, isAddingMode]);
+  }, [locations, onLocationSelect, onAddLocation]);
 
   const handleSearch = () => {
     if (!searchQuery.trim() || !window.google || !mapInstanceRef.current) {
@@ -423,6 +421,29 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
         
         setSearchResult(marker);
         
+        // 嘗試從 geocoding 結果中提取地點名稱
+        // 使用 Google Places API 獲取更準確的地點名稱
+        let placeName = searchQuery;
+        
+        // 如果有 place_id，使用 Places API 獲取詳細資訊
+        if (results[0].place_id) {
+          const placesService = new window.google.maps.places.PlacesService(mapInstanceRef.current);
+          placesService.getDetails({
+            placeId: results[0].place_id,
+            fields: ['name']
+          }, (place: any, status: any) => {
+            if (status === window.google.maps.places.PlacesServiceStatus.OK && place && place.name) {
+              placeName = place.name;
+            }
+          });
+        }
+        
+        // 如果 geocoding 結果有 name 且不等於完整地址，使用它
+        if (!results[0].place_id && results[0].name && results[0].name !== results[0].formatted_address) {
+          placeName = results[0].name;
+        }
+        
+        
         // 移動地圖到搜尋結果
         mapInstanceRef.current.setCenter(location);
         mapInstanceRef.current.setZoom(15);
@@ -435,7 +456,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
               <p style="margin: 5px 0;"><strong>地址:</strong> ${results[0].formatted_address}</p>
               <div style="margin: 10px 0;">
                 <label style="display: block; margin-bottom: 5px;"><strong>地點名稱:</strong></label>
-                <input type="text" id="searchLocationName" placeholder="輸入地點名稱..." style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
+                <input type="text" id="searchLocationName" value="${placeName}" placeholder="輸入地點名稱..." style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
               </div>
               <div style="margin: 10px 0;">
                 <label style="display: block; margin-bottom: 5px;"><strong>評分:</strong></label>
@@ -485,6 +506,9 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
             </div>
           `,
         });
+        
+        // 儲存 InfoWindow 實例
+        searchInfoWindowRef.current = infoWindow;
         
         marker.addListener('click', () => {
           infoWindow.open(mapInstanceRef.current, marker);
@@ -551,54 +575,6 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
           minHeight: 0
         }}
       />
-      
-      {/* 添加模式按鈕 */}
-      <Fab
-        color={isAddingMode ? "secondary" : "primary"}
-        aria-label="add"
-        sx={{ 
-          position: 'absolute', 
-          bottom: 16, 
-          right: 16,
-          zIndex: 1000
-        }}
-        onClick={() => {
-          setIsAddingMode(!isAddingMode);
-          // 清除現有的臨時標記
-          if (tempMarker) {
-            tempMarker.setMap(null);
-            setTempMarker(null);
-          }
-          if (tempInfoWindow) {
-            tempInfoWindow.close();
-            setTempInfoWindow(null);
-          }
-        }}
-      >
-        {isAddingMode ? <CloseIcon /> : <AddIcon />}
-      </Fab>
-      
-      {/* 添加模式提示 */}
-      {isAddingMode && (
-        <Box
-          sx={{
-            position: 'absolute',
-            top: 16,
-            left: 16,
-            right: 16,
-            bgcolor: 'primary.main',
-            color: 'white',
-            p: 2,
-            borderRadius: 1,
-            zIndex: 1000,
-            textAlign: 'center'
-          }}
-        >
-          <Typography variant="body2">
-            📍 點擊地圖上的任意位置來新增地點
-          </Typography>
-        </Box>
-      )}
     </Box>
   );
 };

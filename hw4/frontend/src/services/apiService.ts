@@ -16,7 +16,7 @@ class ApiService {
     // 請求攔截器：自動添加 token
     this.api.interceptors.request.use(
       (config) => {
-        const token = localStorage.getItem('token');
+        const token = sessionStorage.getItem('token');
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
@@ -32,8 +32,8 @@ class ApiService {
       (response) => response,
       (error) => {
         if (error.response?.status === 401) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
+          sessionStorage.removeItem('token');
+          sessionStorage.removeItem('user');
           window.location.href = '/login';
         }
         return Promise.reject(error);
@@ -59,12 +59,24 @@ class ApiService {
   }
 
   async login(data: AuthRequest): Promise<AuthResponse> {
-    const response: AxiosResponse<any> = await this.api.post('/auth/login', data);
-    // 後端直接回傳 token 和 user，不是包在 data 裡面
-    return {
-      token: response.data.token,
-      user: response.data.user
-    };
+    try {
+      const response: AxiosResponse<any> = await this.api.post('/auth/login', data);
+      // 後端直接回傳 token 和 user，不是包在 data 裡面
+      return {
+        token: response.data.token,
+        user: response.data.user
+      };
+    } catch (error: any) {
+      if (error.response?.data?.error) {
+        // 翻譯後端錯誤訊息為中文
+        const errorMessage = error.response.data.error;
+        if (errorMessage === 'Invalid credentials') {
+          throw new Error('帳號或密碼錯誤');
+        }
+        throw new Error(errorMessage);
+      }
+      throw new Error('登入失敗，請檢查您的帳號密碼');
+    }
   }
 
   async logout(): Promise<void> {

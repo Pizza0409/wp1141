@@ -1,7 +1,18 @@
 import sqlite3 from 'sqlite3';
 import path from 'path';
+import fs from 'fs';
 
 const dbPath = process.env.DATABASE_PATH || './database/locations.db';
+
+// 每次啟動時刪除舊資料庫（確保測試從乾淨狀態開始）
+if (fs.existsSync(dbPath)) {
+  try {
+    fs.unlinkSync(dbPath);
+    console.log('🗑️  Previous database deleted');
+  } catch (error) {
+    console.error('Error deleting database:', error);
+  }
+}
 
 export const db = new sqlite3.Database(dbPath);
 

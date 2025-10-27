@@ -32,6 +32,16 @@ class ApiService {
       (response) => response,
       (error) => {
         if (error.response?.status === 401) {
+          // 只對認證相關的 API 進行特殊處理
+          const requestUrl = error.config?.url || '';
+          
+          // 如果是登入或註冊 API 的 401 錯誤，不應該強制重定向
+          // 讓登入/註冊頁面自己處理錯誤顯示
+          if (requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register')) {
+            return Promise.reject(error);
+          }
+          
+          // 對於其他 API 的 401 錯誤，清除 token 並重定向到登入頁
           sessionStorage.removeItem('token');
           sessionStorage.removeItem('user');
           window.location.href = '/login';

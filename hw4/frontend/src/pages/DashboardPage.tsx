@@ -77,6 +77,20 @@ const DashboardPage = () => {
     rating?: number;
     notes?: string;
   }) => {
+    // Check for duplicate address
+    const isDuplicate = locations.some(loc => 
+      loc.address.toLowerCase().trim() === locationData.address.toLowerCase().trim()
+    );
+
+    if (isDuplicate) {
+      const confirmAdd = window.confirm(
+        `地址「${locationData.address}」已存在於您的清單中。\n\n是否仍要新增？`
+      );
+      if (!confirmAdd) {
+        return; // User cancelled
+      }
+    }
+
     // If all required data is provided, create location directly
     if (locationData.name && locationData.rating !== undefined) {
       try {

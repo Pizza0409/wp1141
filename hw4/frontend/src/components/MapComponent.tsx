@@ -39,8 +39,9 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
   const [mapError, setMapError] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchResult, setSearchResult] = useState<any>(null);
-  const [tempMarker, setTempMarker] = useState<any>(null);
-  const [tempInfoWindow, setTempInfoWindow] = useState<any>(null);
+  const tempMarkerRef = useRef<any>(null);
+  const tempInfoWindowRef = useRef<any>(null);
+  const previousLocationsCountRef = useRef<number>(0);
 
   useEffect(() => {
     // 設定全域函數供 InfoWindow 按鈕使用
@@ -50,29 +51,29 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
       }
     };
 
-    (window as any).addLocationFromClick = (name: string, address: string, lat: number, lng: number, rating: number) => {
+    (window as any).addLocationFromClick = (name: string, address: string, lat: number, lng: number, rating: number, notes: string = '') => {
       if (onAddLocation) {
-        onAddLocation({ name, address, latitude: lat, longitude: lng, rating });
+        onAddLocation({ name, address, latitude: lat, longitude: lng, rating, notes });
       }
       // Clear temporary marker after adding
-      if (tempMarker) {
-        tempMarker.setMap(null);
-        setTempMarker(null);
+      if (tempMarkerRef.current) {
+        tempMarkerRef.current.setMap(null);
+        tempMarkerRef.current = null;
       }
-      if (tempInfoWindow) {
-        tempInfoWindow.close();
-        setTempInfoWindow(null);
+      if (tempInfoWindowRef.current) {
+        tempInfoWindowRef.current.close();
+        tempInfoWindowRef.current = null;
       }
     };
 
     (window as any).cancelTempMarker = () => {
-      if (tempMarker) {
-        tempMarker.setMap(null);
-        setTempMarker(null);
+      if (tempMarkerRef.current) {
+        tempMarkerRef.current.setMap(null);
+        tempMarkerRef.current = null;
       }
-      if (tempInfoWindow) {
-        tempInfoWindow.close();
-        setTempInfoWindow(null);
+      if (tempInfoWindowRef.current) {
+        tempInfoWindowRef.current.close();
+        tempInfoWindowRef.current = null;
       }
     };
 
@@ -158,14 +159,25 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
         markersRef.current.push(marker);
       });
 
-      // 如果有地點，調整地圖視野以包含所有標記
-      if (locations.length > 0) {
+      // 調整地圖視野
+      const currentCount = locations.length;
+      if (currentCount > previousLocationsCountRef.current) {
+        // 新增了地點，將地圖移動到最後新增的地點
+        const lastLocation = locations[0]; // 新地點在陣列最前面
+        if (lastLocation) {
+          mapInstanceRef.current.setCenter({ lat: lastLocation.latitude, lng: lastLocation.longitude });
+          mapInstanceRef.current.setZoom(15); // 設定適當的縮放級別
+        }
+      } else if (currentCount > 0 && previousLocationsCountRef.current === 0) {
+        // 首次載入時，調整視野包含所有地點
         const bounds = new window.google.maps.LatLngBounds();
         locations.forEach(location => {
           bounds.extend({ lat: location.latitude, lng: location.longitude });
         });
         mapInstanceRef.current.fitBounds(bounds);
       }
+      // 更新記錄
+      previousLocationsCountRef.current = currentCount;
 
       // 添加地圖點擊事件 - 直接響應點擊
       mapInstanceRef.current.addListener('click', (event: any) => {
@@ -178,11 +190,11 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
         const lng = event.latLng.lng();
         
         // 清除之前的臨時標記
-        if (tempMarker) {
-          tempMarker.setMap(null);
+        if (tempMarkerRef.current) {
+          tempMarkerRef.current.setMap(null);
         }
-        if (tempInfoWindow) {
-          tempInfoWindow.close();
+        if (tempInfoWindowRef.current) {
+          tempInfoWindowRef.current.close();
         }
         
         // 創建臨時標記
@@ -194,7 +206,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
           }
         });
         
-        setTempMarker(marker);
+        tempMarkerRef.current = marker;
         
         // 反向地理編碼獲取地址
         const geocoder = new window.google.maps.Geocoder();
@@ -222,9 +234,13 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
                       <option value="5">5 星</option>
                     </select>
                   </div>
+                  <div style="margin: 10px 0;">
+                    <label style="display: block; margin-bottom: 5px;"><strong>備註:</strong></label>
+                    <textarea id="clickLocationNotes" placeholder="添加備註..." style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 3px; height: 60px;"></textarea>
+                  </div>
                   <div style="margin-top: 15px;">
                     <button 
-                      onclick="const name = document.getElementById('locationName').value; const rating = parseInt(document.getElementById('locationRating').value); if(name.trim()) { window.addLocationFromClick(name.trim(), '${address}', ${lat}, ${lng}, rating); } else { alert('請輸入地點名稱'); }"
+                      onclick="const name = document.getElementById('locationName').value; const rating = parseInt(document.getElementById('locationRating').value); const notes = document.getElementById('clickLocationNotes').value; if(name.trim()) { window.addLocationFromClick(name.trim(), '${address}', ${lat}, ${lng}, rating, notes); } else { alert('請輸入地點名稱'); }"
                       style="
                         background: #1976d2; 
                         color: white; 
@@ -261,7 +277,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
               `,
             });
             
-            setTempInfoWindow(infoWindow);
+            tempInfoWindowRef.current = infoWindow;
             infoWindow.open(mapInstanceRef.current, marker);
           }
         });
@@ -369,11 +385,11 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
       // 清理標記
       markersRef.current.forEach(marker => marker.setMap(null));
       // 清理臨時標記
-      if (tempMarker) {
-        tempMarker.setMap(null);
+      if (tempMarkerRef.current) {
+        tempMarkerRef.current.setMap(null);
       }
-      if (tempInfoWindow) {
-        tempInfoWindow.close();
+      if (tempInfoWindowRef.current) {
+        tempInfoWindowRef.current.close();
       }
       // 清理地標 InfoWindow
       if (placeInfoWindowRef.current) {
@@ -468,9 +484,13 @@ const MapComponent: React.FC<MapComponentProps> = ({ locations, onLocationSelect
                   <option value="5">5 星</option>
                 </select>
               </div>
+              <div style="margin: 10px 0;">
+                <label style="display: block; margin-bottom: 5px;"><strong>備註:</strong></label>
+                <textarea id="searchLocationNotes" placeholder="添加備註..." style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 3px; height: 60px;"></textarea>
+              </div>
               <div style="margin-top: 15px;">
                 <button 
-                  onclick="const name = document.getElementById('searchLocationName').value; const rating = parseInt(document.getElementById('searchLocationRating').value); if(name.trim()) { window.addLocationFromMap(name.trim(), '${results[0].formatted_address}', ${location.lat()}, ${location.lng()}, rating); } else { alert('請輸入地點名稱'); }"
+                  onclick="const name = document.getElementById('searchLocationName').value; const rating = parseInt(document.getElementById('searchLocationRating').value); const notes = document.getElementById('searchLocationNotes').value; if(name.trim()) { window.addLocationFromMap(name.trim(), '${results[0].formatted_address}', ${location.lat()}, ${location.lng()}, rating, notes); } else { alert('請輸入地點名稱'); }"
                   style="
                     background: #1976d2; 
                     color: white; 

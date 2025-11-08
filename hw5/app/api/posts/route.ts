@@ -1,149 +1,115 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
-import { db } from '@/lib/db';
-import { countCharacters } from '@/lib/linkify';
+import { auth } from '@/lib/auth';
+import connectDB from '@/lib/mongodb';
+import mongoose, { Schema, Model } from 'mongoose';
+
+interface IPost {
+  _id: mongoose.Types.ObjectId;
+  content: string;
+  authorID: string;
+  authorUserID: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const PostSchema = new Schema<IPost>(
+  {
+    content: {
+      type: String,
+      required: true,
+      maxlength: 280,
+    },
+    authorID: {
+      type: String,
+      required: true,
+    },
+    authorUserID: {
+      type: String,
+      required: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+let Post: Model<IPost>;
+
+try {
+  Post = mongoose.model<IPost>('Post');
+} catch {
+  Post = mongoose.model<IPost>('Post', PostSchema);
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    await connectDB();
+    const posts = await Post.find()
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
 
-    const searchParams = request.nextUrl.searchParams;
-    const filter = searchParams.get('filter') || 'all'; // 'all' or 'following'
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const cursor = searchParams.get('cursor');
-
-    let posts;
-
-    if (filter === 'following') {
-      // Get posts from users that the current user follows
-      const following = await db.follow.findMany({
-        where: { followerId: session.user.id },
-        select: { followingId: true },
-      });
-
-      const followingIds = following.map((f) => f.followingId);
-
-      posts = await db.post.findMany({
-        where: {
-          authorId: { in: followingIds },
-        },
-        include: {
-          author: true,
-          _count: {
-            select: {
-              comments: true,
-              likes: true,
-              reposts: true,
-            },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: limit + 1,
-        ...(cursor && { cursor: { id: cursor }, skip: 1 }),
-      });
-    } else {
-      // Get all posts
-      posts = await db.post.findMany({
-        include: {
-          author: true,
-          _count: {
-            select: {
-              comments: true,
-              likes: true,
-              reposts: true,
-            },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: limit + 1,
-        ...(cursor && { cursor: { id: cursor }, skip: 1 }),
-      });
-    }
-
-    // Check if user liked/reposted each post
-    const postIds = posts.map((p) => p.id);
-    const [likes, reposts] = await Promise.all([
-      db.like.findMany({
-        where: {
-          userId: session.user.id,
-          postId: { in: postIds },
-        },
-      }),
-      db.repost.findMany({
-        where: {
-          userId: session.user.id,
-          postId: { in: postIds },
-        },
-      }),
-    ]);
-
-    const likesSet = new Set(likes.map((l) => l.postId));
-    const repostsSet = new Set(reposts.map((r) => r.postId));
-
-    const postsWithInteractions = posts.slice(0, limit).map((post) => ({
-      ...post,
-      liked: likesSet.has(post.id),
-      reposted: repostsSet.has(post.id),
-    }));
-
-    const nextCursor = posts.length > limit ? posts[limit].id : null;
-
-    return NextResponse.json({
-      posts: postsWithInteractions,
-      nextCursor,
-    });
-  } catch (error) {
+    return NextResponse.json({ posts });
+  } catch (error: any) {
     console.error('Get posts error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
-    if (!session?.user) {
+    if (!session || !session.user || !session.user.userID) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { content } = await request.json();
 
-    if (!content || typeof content !== 'string') {
-      return NextResponse.json({ error: 'Content is required' }, { status: 400 });
-    }
-
-    // Check character count
-    const charCount = countCharacters(content);
-    if (charCount > 280) {
+    if (!content || typeof content !== 'string' || content.trim().length === 0) {
       return NextResponse.json(
-        { error: 'Post exceeds 280 character limit' },
+        { error: 'Post content is required' },
         { status: 400 }
       );
     }
 
-    const post = await db.post.create({
-      data: {
-        authorId: session.user.id,
-        content: content.trim(),
-      },
-      include: {
-        author: true,
-        _count: {
-          select: {
-            comments: true,
-            likes: true,
-            reposts: true,
-          },
-        },
-      },
+    if (content.length > 280) {
+      return NextResponse.json(
+        { error: 'Post content must be 280 characters or less' },
+        { status: 400 }
+      );
+    }
+
+    await connectDB();
+
+    const post = new Post({
+      content: content.trim(),
+      authorID: session.user.id,
+      authorUserID: session.user.userID,
     });
 
-    return NextResponse.json({ post: { ...post, liked: false, reposted: false } });
-  } catch (error) {
+    await post.save();
+
+    return NextResponse.json(
+      {
+        message: 'Post created successfully',
+        post: {
+          _id: post._id,
+          content: post.content,
+          authorUserID: post.authorUserID,
+          createdAt: post.createdAt,
+        },
+      },
+      { status: 201 }
+    );
+  } catch (error: any) {
     console.error('Create post error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
 

@@ -9,103 +9,153 @@ export default function Sidebar() {
   const { data: session } = useSession();
   const router = useRouter();
   const pathname = usePathname();
-  const [showLogout, setShowLogout] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowLogout(false);
+        setShowDropdown(false);
       }
     }
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdown]);
 
   const handleLogout = async () => {
-    await signOut({ callbackUrl: '/auth/signin' });
+    await signOut({ callbackUrl: '/signin' });
+  };
+
+  const handlePostClick = () => {
+    router.push('/post');
   };
 
   if (!session?.user) {
     return null;
   }
 
-  const navItems = [
-    { name: 'Home', path: '/', icon: '🏠' },
-    { name: 'Profile', path: `/profile/${session.user.userID}`, icon: '👤' },
-  ];
-
   return (
     <div className="fixed left-0 top-0 h-screen w-64 bg-black border-r border-gray-800 flex flex-col">
       {/* Logo */}
-      <div className="p-4 border-b border-gray-800">
-        <div className="text-2xl font-bold text-white">✱</div>
+      <div className="p-4">
+        <Link href="/" className="text-2xl font-bold text-white">
+          X
+        </Link>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2">
-        {navItems.map((item) => {
-          const isActive = pathname === item.path || (item.path === '/' && pathname.startsWith('/post'));
-          return (
-            <Link
-              key={item.path}
-              href={item.path}
-              className={`flex items-center gap-4 px-4 py-3 rounded-full transition-colors ${
-                isActive
-                  ? 'bg-gray-800 text-white'
-                  : 'text-gray-400 hover:bg-gray-900 hover:text-white'
-              }`}
-            >
-              <span className="text-xl">{item.icon}</span>
-              <span className="font-semibold">{item.name}</span>
-            </Link>
-          );
-        })}
+      <nav className="flex-1 px-4 py-4 space-y-2">
+        <Link
+          href="/"
+          className={`flex items-center gap-4 px-4 py-3 rounded-full transition-colors ${
+            pathname === '/'
+              ? 'bg-gray-800 text-white'
+              : 'text-gray-400 hover:bg-gray-900 hover:text-white'
+          }`}
+        >
+          <svg
+            className="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+            />
+          </svg>
+          <span className="text-xl font-semibold">Home</span>
+        </Link>
 
-        {/* Post Button */}
+        <Link
+          href="/profile"
+          className={`flex items-center gap-4 px-4 py-3 rounded-full transition-colors ${
+            pathname === '/profile'
+              ? 'bg-gray-800 text-white'
+              : 'text-gray-400 hover:bg-gray-900 hover:text-white'
+          }`}
+        >
+          <svg
+            className="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+            />
+          </svg>
+          <span className="text-xl font-semibold">Profile</span>
+        </Link>
+
         <button
-          onClick={() => router.push('/?post=true')}
-          className="w-full bg-white text-black px-4 py-3 rounded-full font-bold hover:bg-gray-200 transition-colors mt-4"
+          onClick={handlePostClick}
+          className="w-full bg-white text-black px-4 py-3 rounded-full font-semibold hover:bg-gray-200 transition-colors mt-4"
         >
           Post
         </button>
       </nav>
 
-      {/* User Section */}
-      <div className="p-4 border-t border-gray-800 relative" ref={dropdownRef}>
-        <button
-          onClick={() => setShowLogout(!showLogout)}
-          className="w-full flex items-center gap-3 p-3 rounded-full hover:bg-gray-900 transition-colors"
-        >
-          <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden">
-            {session.user.image ? (
-              <img src={session.user.image} alt={session.user.name || ''} className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-white text-lg">
-                {session.user.name?.charAt(0).toUpperCase() || 'U'}
-              </span>
-            )}
-          </div>
-          <div className="flex-1 text-left">
-            <div className="text-white font-semibold text-sm truncate">
-              {session.user.name || 'User'}
+      {/* User Profile Section */}
+      <div className="p-4 border-t border-gray-800">
+        <div className="relative" ref={dropdownRef}>
+          <button
+            onClick={() => setShowDropdown(!showDropdown)}
+            className="w-full flex items-center gap-3 p-3 rounded-full hover:bg-gray-900 transition-colors"
+          >
+            <img
+              src={session.user.image || '/default-avatar.png'}
+              alt={session.user.name || 'User'}
+              className="w-10 h-10 rounded-full"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"%3E%3Ccircle cx="20" cy="20" r="20" fill="%23333"%3E%3C/svg%3E';
+              }}
+            />
+            <div className="flex-1 text-left">
+              <div className="text-white font-semibold truncate">
+                {session.user.name || 'User'}
+              </div>
+              <div className="text-gray-400 text-sm truncate">
+                @{session.user.userID || 'user'}
+              </div>
             </div>
-            <div className="text-gray-400 text-xs truncate">@{session.user.userID}</div>
-          </div>
-        </button>
-
-        {/* Logout Dropdown */}
-        {showLogout && (
-          <div className="absolute bottom-full left-4 right-4 mb-2 bg-gray-900 border border-gray-700 rounded-lg shadow-lg overflow-hidden">
-            <button
-              onClick={handleLogout}
-              className="w-full px-4 py-3 text-left text-red-400 hover:bg-gray-800 transition-colors"
+            <svg
+              className="w-5 h-5 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              Log out
-            </button>
-          </div>
-        )}
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </button>
+
+          {showDropdown && (
+            <div className="absolute bottom-full left-0 mb-2 w-64 bg-gray-900 rounded-lg shadow-lg border border-gray-800 overflow-hidden">
+              <button
+                onClick={handleLogout}
+                className="w-full px-4 py-3 text-left text-white hover:bg-gray-800 transition-colors"
+              >
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

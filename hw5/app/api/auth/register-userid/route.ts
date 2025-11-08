@@ -10,11 +10,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { userID } = await request.json();
+    const { userID: rawUserID } = await request.json();
 
-    if (!userID || typeof userID !== 'string') {
+    if (!rawUserID || typeof rawUserID !== 'string') {
       return NextResponse.json({ error: 'userID is required' }, { status: 400 });
     }
+
+    // Trim userID to ensure consistency with database storage
+    const userID = rawUserID.trim();
 
     // Validate userID format
     if (!/^[a-zA-Z0-9_]+$/.test(userID)) {
@@ -32,12 +35,6 @@ export async function POST(request: NextRequest) {
     }
 
     await connectDB();
-
-    // Check if userID already exists
-    const existingUser = await User.findOne({ userID });
-    if (existingUser) {
-      return NextResponse.json({ error: 'userID already taken' }, { status: 409 });
-    }
 
     // Get provider info from session token (stored during OAuth)
     const provider = (session.user as any).provider;
@@ -61,11 +58,35 @@ export async function POST(request: NextRequest) {
     }
 
     if (user) {
-      // User exists, update userID
+      // User exists, check if they want to update their userID
+      // If the new userID is different from current, check if it's available
+      if (user.userID !== userID) {
+        const existingUserWithUserID = await User.findOne({ userID });
+        if (existingUserWithUserID && existingUserWithUserID._id.toString() !== user._id.toString()) {
+          return NextResponse.json({ error: 'userID already taken' }, { status: 409 });
+        }
+      }
+      
+      // Update userID
+      console.log('📝 Updating existing user with userID:', userID);
+      console.log('  - User ID:', user._id.toString());
+      console.log('  - Current userID:', user.userID);
+      console.log('  - New userID:', userID);
       user.userID = userID;
       await user.save();
+      console.log('✅ User updated successfully in database');
     } else if (provider && providerAccountId) {
+      // Check if userID already exists before creating new user
+      const existingUserWithUserID = await User.findOne({ userID });
+      if (existingUserWithUserID) {
+        return NextResponse.json({ error: 'userID already taken' }, { status: 409 });
+      }
+      
       // Create new user with OAuth info
+      console.log('📝 Creating new user with userID:', userID);
+      console.log('  - Email:', email);
+      console.log('  - Provider:', provider);
+      console.log('  - ProviderAccountId:', providerAccountId);
       user = new User({
         userID,
         email,
@@ -75,6 +96,9 @@ export async function POST(request: NextRequest) {
         providerAccountId,
       });
       await user.save();
+      console.log('✅ New user created successfully in database');
+      console.log('  - User ID:', user._id.toString());
+      console.log('  - userID:', user.userID);
     } else {
       // No provider info - user might have logged in with userID already
       return NextResponse.json(

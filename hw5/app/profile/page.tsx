@@ -148,22 +148,35 @@ export default function ProfilePage() {
     }
   };
 
-  const handleFollow = async () => {
+  const handleFollow = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     if (!profile?.userID || updatingFollow) return;
     setUpdatingFollow(true);
+    
     try {
       const method = isFollowing ? 'DELETE' : 'POST';
+      console.log(`Attempting to ${isFollowing ? 'unfollow' : 'follow'} user:`, profile.userID);
+      
       const response = await fetch(`/api/user/${profile.userID}/follow`, {
         method,
       });
 
+      const data = await response.json();
+      
       if (response.ok) {
+        console.log('Follow action successful:', data);
         setIsFollowing(!isFollowing);
         // Refresh profile to update follower count
         await fetchProfile();
+      } else {
+        console.error('Follow action failed:', data);
+        alert(data.error || 'Failed to update follow status');
       }
     } catch (error) {
       console.error('Error updating follow status:', error);
+      alert('An error occurred. Please try again.');
     } finally {
       setUpdatingFollow(false);
     }
@@ -238,7 +251,8 @@ export default function ProfilePage() {
               <button
                 onClick={handleFollow}
                 disabled={updatingFollow}
-                className={`absolute bottom-4 right-4 px-4 py-2 rounded-full font-semibold transition-colors ${
+                type="button"
+                className={`absolute bottom-4 right-4 px-4 py-2 rounded-full font-semibold transition-colors z-10 ${
                   isFollowing
                     ? 'bg-white text-black hover:bg-gray-200'
                     : 'bg-white text-black hover:bg-gray-200'

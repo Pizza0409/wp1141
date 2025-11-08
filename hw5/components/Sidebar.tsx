@@ -4,12 +4,14 @@ import { useSession, signOut } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import PostModal from './PostModal';
 
 export default function Sidebar() {
   const { data: session } = useSession();
   const router = useRouter();
   const pathname = usePathname();
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showPostModal, setShowPostModal] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,7 +35,7 @@ export default function Sidebar() {
   };
 
   const handlePostClick = () => {
-    router.push('/post');
+    setShowPostModal(true);
   };
 
   if (!session?.user) {
@@ -157,6 +159,15 @@ export default function Sidebar() {
           )}
         </div>
       </div>
+
+      <PostModal
+        isOpen={showPostModal}
+        onClose={() => setShowPostModal(false)}
+        onSuccess={() => {
+          setShowPostModal(false);
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

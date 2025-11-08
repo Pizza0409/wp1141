@@ -3,21 +3,29 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
+import InlinePostCreator from '@/components/InlinePostCreator';
+import Post from '@/components/Post';
 
-interface Post {
+interface PostData {
   _id: string;
   content: string;
   authorUserID: string;
   createdAt: string;
+  commentCount?: number;
+  repostCount?: number;
+  likeCount?: number;
+  isLiked?: boolean;
+  isRepost?: boolean;
+  repostedBy?: string;
 }
 
 export default function Home() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<PostData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'following'>('all');
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -31,11 +39,11 @@ export default function Home() {
     if (status === 'authenticated' && session?.user?.userID) {
       fetchPosts();
     }
-  }, [status, session]);
+  }, [status, session, filter]);
 
   const fetchPosts = async () => {
     try {
-      const response = await fetch('/api/posts');
+      const response = await fetch(`/api/posts?filter=${filter}`);
       const data = await response.json();
       if (data.posts) {
         setPosts(data.posts);
@@ -64,65 +72,46 @@ export default function Home() {
       <Sidebar />
       <div className="ml-64 flex">
         <main className="flex-1 max-w-2xl border-x border-gray-800">
-          {/* Header */}
-          <div className="sticky top-0 bg-black/80 backdrop-blur-sm border-b border-gray-800 px-4 py-4">
-            <h1 className="text-xl font-bold text-white">Home</h1>
-          </div>
-
-          {/* What's happening input */}
-          <div className="border-b border-gray-800 p-4">
-            <div className="flex gap-4">
-              <img
-                src={session.user.image || '/default-avatar.png'}
-                alt={session.user.name || 'User'}
-                className="w-12 h-12 rounded-full"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"%3E%3Ccircle cx="24" cy="24" r="24" fill="%23333"%3E%3C/svg%3E';
-                }}
-              />
-              <div className="flex-1">
-                <div className="text-gray-400 text-xl mb-4">
-                  What's happening?
-                </div>
-                <button
-                  onClick={() => router.push('/post')}
-                  className="w-full py-3 px-4 bg-blue-500 text-white rounded-full font-semibold hover:bg-blue-600 transition-colors"
-                >
-                  Create Post
-                </button>
-              </div>
+          {/* Header with filters */}
+          <div className="sticky top-0 bg-black/80 backdrop-blur-sm border-b border-gray-800">
+            <div className="flex">
+              <button
+                onClick={() => setFilter('all')}
+                className={`flex-1 px-4 py-4 font-semibold transition-colors ${
+                  filter === 'all'
+                    ? 'text-white border-b-2 border-blue-500'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setFilter('following')}
+                className={`flex-1 px-4 py-4 font-semibold transition-colors ${
+                  filter === 'following'
+                    ? 'text-white border-b-2 border-blue-500'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Following
+              </button>
             </div>
           </div>
+
+          {/* Inline Post Creator */}
+          <InlinePostCreator onSuccess={fetchPosts} />
 
           {/* Posts Feed */}
           <div>
             {posts.length === 0 ? (
               <div className="p-8 text-center text-gray-400">
-                No posts yet. Be the first to post!
+                {filter === 'following'
+                  ? 'No posts from people you follow yet.'
+                  : 'No posts yet. Be the first to post!'}
               </div>
             ) : (
               posts.map((post) => (
-                <div
-                  key={post._id}
-                  className="border-b border-gray-800 p-4 hover:bg-gray-900/50 transition-colors"
-                >
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Link
-                          href={`/profile/${post.authorUserID}`}
-                          className="font-semibold text-white hover:underline"
-                        >
-                          @{post.authorUserID}
-                        </Link>
-                        <span className="text-gray-400 text-sm">
-                          {new Date(post.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <p className="text-white whitespace-pre-wrap">{post.content}</p>
-                    </div>
-                  </div>
-                </div>
+                <Post key={post._id} post={post} onUpdate={fetchPosts} />
               ))
             )}
           </div>

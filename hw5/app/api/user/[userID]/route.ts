@@ -68,10 +68,32 @@ export async function GET(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Get post count (posts and reposts)
-    const postCount = await Post.countDocuments({
-      $or: [{ authorUserID: userID }, { repostedBy: userID }],
-    });
+    // Get post count (posts and reposts, excluding comments)
+    // Comments have parentPostID, so we exclude them from the count
+    // Count original posts by user (not reposts by others) and posts reposted by user
+    const posts = await Post.find({
+      $or: [
+        // Original posts by this user (not reposts by others)
+        {
+          authorUserID: userID,
+          $or: [
+            { isRepost: false },
+            { repostedBy: userID }, // User reposted their own post
+          ],
+        },
+        // Posts reposted by this user
+        {
+          repostedBy: userID,
+          isRepost: true,
+        },
+      ],
+      parentPostID: { $exists: false }, // Exclude comments
+      isDeleted: false,
+    }).select('_id').lean();
+    
+    // Count unique posts (in case user reposted their own post)
+    const uniquePostIds = new Set(posts.map(p => p._id.toString()));
+    const postCount = uniquePostIds.size;
 
     // Check if current user follows this user
     const session = await auth();

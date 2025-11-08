@@ -62,12 +62,27 @@ export async function GET(
     const { userID } = await params;
     await connectDB();
 
-    // Get all posts and reposts by this user
+    // Get all posts and reposts by this user (excluding comments)
+    // Comments have parentPostID, so we exclude them
+    // For posts: show original posts where user is the author (not reposts by others)
+    // For reposts: show posts where user reposted them
     const posts = await Post.find({
       $or: [
-        { authorUserID: userID },
-        { repostedBy: userID },
+        // Original posts by this user (not reposts by others)
+        {
+          authorUserID: userID,
+          $or: [
+            { isRepost: false },
+            { repostedBy: userID }, // User reposted their own post
+          ],
+        },
+        // Posts reposted by this user
+        {
+          repostedBy: userID,
+          isRepost: true,
+        },
       ],
+      parentPostID: { $exists: false }, // Exclude comments
       isDeleted: false,
     })
       .sort({ createdAt: -1 })

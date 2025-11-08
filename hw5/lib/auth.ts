@@ -286,9 +286,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.userID = token.userID as string | undefined;
         session.user.provider = token.provider as string | undefined;
         session.user.providerAccountId = token.providerAccountId as string | undefined;
-        session.user.email = token.email as string | undefined;
-        session.user.name = token.name as string | undefined;
-        session.user.image = token.image as string | undefined;
+        if (token.email) {
+          session.user.email = token.email as string;
+        }
+        if (token.name) {
+          session.user.name = token.name as string;
+        }
+        if (token.image) {
+          session.user.image = token.image as string;
+        }
       }
       console.log('Session callback - token.userID:', token.userID, 'token.email:', token.email, 'session.user.userID:', session.user?.userID);
       return session;

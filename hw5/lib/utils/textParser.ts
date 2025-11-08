@@ -28,7 +28,7 @@ export function parseText(text: string): ParsedTextPart[] {
   }> = [];
 
   // Find URLs
-  let match;
+  let match: RegExpExecArray | null;
   while ((match = URL_REGEX.exec(text)) !== null) {
     matches.push({
       index: match.index,
@@ -45,8 +45,8 @@ export function parseText(text: string): ParsedTextPart[] {
     const isInUrl = matches.some(
       (m) =>
         m.type === 'link' &&
-        match.index >= m.index &&
-        match.index < m.index + m.length
+        match!.index >= m.index &&
+        match!.index < m.index + m.length
     );
     if (!isInUrl) {
       matches.push({
@@ -60,13 +60,14 @@ export function parseText(text: string): ParsedTextPart[] {
 
   // Find mentions (but not if they're part of a URL)
   URL_REGEX.lastIndex = 0;
+  HASHTAG_REGEX.lastIndex = 0;
   while ((match = MENTION_REGEX.exec(text)) !== null) {
-    // Check if this mention is part of a URL
+    // Check if this mention is part of a URL or hashtag
     const isInUrl = matches.some(
       (m) =>
-        m.type === 'link' &&
-        match.index >= m.index &&
-        match.index < m.index + m.length
+        (m.type === 'link' || m.type === 'hashtag') &&
+        match!.index >= m.index &&
+        match!.index < m.index + m.length
     );
     if (!isInUrl) {
       matches.push({

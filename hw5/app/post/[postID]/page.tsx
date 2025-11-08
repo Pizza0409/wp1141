@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import Post from '@/components/Post';
+import Comment from '@/components/Comment';
 import InlinePostCreator from '@/components/InlinePostCreator';
 
 interface PostData {
@@ -133,9 +134,9 @@ export default function PostDetailPage() {
               </div>
             ) : (
               comments.map((comment) => (
-                <Post
+                <Comment
                   key={comment._id}
-                  post={comment}
+                  comment={comment}
                   onUpdate={fetchPostDetail}
                 />
               ))

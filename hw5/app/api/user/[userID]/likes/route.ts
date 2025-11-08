@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import connectDB from '@/lib/mongodb';
 import Like from '@/lib/models/Like';
+import User from '@/lib/models/User';
 import mongoose, { Model, Schema } from 'mongoose';
 
 interface IPost {
@@ -86,11 +87,25 @@ export async function GET(
     // Get all posts that were liked
     const posts = await Post.find({
       _id: { $in: postIDs.map((id) => new mongoose.Types.ObjectId(id)) },
+      isDeleted: false,
     })
       .sort({ createdAt: -1 })
       .lean();
 
-    return NextResponse.json({ posts });
+    // Get author info for each post
+    const postsWithAuthorInfo = await Promise.all(
+      posts.map(async (post) => {
+        const author = await User.findOne({ userID: post.authorUserID }).lean();
+        return {
+          ...post,
+          authorName: author?.name || '',
+          authorDisplayName: author?.displayName || author?.name || '',
+          authorImage: author?.image || '',
+        };
+      })
+    );
+
+    return NextResponse.json({ posts: postsWithAuthorInfo });
   } catch (error: any) {
     console.error('Get user likes error:', error);
     return NextResponse.json(

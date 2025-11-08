@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import connectDB from '@/lib/mongodb';
 import mongoose, { Model, Schema } from 'mongoose';
 import { countCharacters } from '@/lib/utils/characterCount';
+import User from '@/lib/models/User';
 
 interface IPost {
   _id: mongoose.Types.ObjectId;
@@ -95,7 +96,20 @@ export async function GET(
       .sort({ createdAt: -1 })
       .lean();
 
-    return NextResponse.json({ comments });
+    // Get author info for each comment
+    const commentsWithAuthorInfo = await Promise.all(
+      comments.map(async (comment) => {
+        const author = await User.findOne({ userID: comment.authorUserID }).lean();
+        return {
+          ...comment,
+          authorName: author?.name || '',
+          authorDisplayName: author?.displayName || author?.name || '',
+          authorImage: author?.image || '',
+        };
+      })
+    );
+
+    return NextResponse.json({ comments: commentsWithAuthorInfo });
   } catch (error: any) {
     console.error('Get comments error:', error);
     return NextResponse.json(

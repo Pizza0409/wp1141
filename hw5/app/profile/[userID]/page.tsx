@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
+import Post from '@/components/Post';
 import Link from 'next/link';
 
 interface Post {
@@ -13,6 +14,13 @@ interface Post {
   createdAt: string;
   isRepost?: boolean;
   repostedBy?: string;
+  commentCount?: number;
+  repostCount?: number;
+  likeCount?: number;
+  isLiked?: boolean;
+  authorName?: string;
+  authorDisplayName?: string;
+  authorImage?: string;
 }
 
 interface UserProfile {
@@ -242,41 +250,11 @@ export default function UserProfilePage() {
               </div>
             ) : (
               posts.map((post) => (
-                <div
+                <Post
                   key={post._id}
-                  className="border-b border-gray-800 p-4 hover:bg-gray-900/50 transition-colors"
-                >
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Link
-                          href={`/profile/${post.authorUserID}`}
-                          className="font-semibold text-white hover:underline"
-                        >
-                          @{post.authorUserID}
-                        </Link>
-                        {post.isRepost && post.repostedBy && (
-                          <span className="text-gray-400 text-sm">
-                            (reposted by{' '}
-                            <Link
-                              href={`/profile/${post.repostedBy}`}
-                              className="text-blue-400 hover:underline"
-                            >
-                              @{post.repostedBy}
-                            </Link>
-                            )
-                          </span>
-                        )}
-                        <span className="text-gray-400 text-sm">
-                          {new Date(post.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <p className="text-white whitespace-pre-wrap">
-                        {post.content}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                  post={post}
+                  onUpdate={fetchUserPosts}
+                />
               ))
             )}
           </div>

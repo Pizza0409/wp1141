@@ -167,6 +167,8 @@ export default function PostModal({
                   onChange={(e) => {
                     const newContent = e.target.value;
                     const newCharCount = countCharacters(newContent);
+                    // Allow input if valid, or if deleting (new length <= old length)
+                    // This prevents typing when limit is exceeded but allows deletion
                     if (newCharCount.isValid || newContent.length <= content.length) {
                       setContent(newContent);
                     }
@@ -174,6 +176,7 @@ export default function PostModal({
                   placeholder="What's happening?"
                   className="w-full bg-transparent text-white text-xl placeholder-gray-500 resize-none focus:outline-none min-h-[200px]"
                   autoFocus
+                  maxLength={1000}
                 />
                 <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-800">
                   <span
@@ -190,7 +193,12 @@ export default function PostModal({
                   <button
                     onClick={handlePost}
                     disabled={loading || !canPost}
-                    className="px-6 py-2 bg-blue-500 text-white rounded-full font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    type="button"
+                    className={`px-6 py-2 rounded-full font-semibold transition-colors ${
+                      canPost && !loading
+                        ? 'bg-blue-500 text-white hover:bg-blue-600'
+                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                    }`}
                   >
                     {loading ? 'Posting...' : 'Post'}
                   </button>

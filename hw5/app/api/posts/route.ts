@@ -113,9 +113,13 @@ export async function GET(request: NextRequest) {
       .limit(50)
       .lean();
 
-    // Get like status for each post if user is authenticated
-    const postsWithLikes = await Promise.all(
+    // Get author info and like status for each post
+    const postsWithAuthorInfo = await Promise.all(
       posts.map(async (post) => {
+        // Get author user info
+        const author = await User.findOne({ userID: post.authorUserID }).lean();
+        
+        // Get like status if user is authenticated
         let isLiked = false;
         if (session?.user?.userID) {
           const like = await Like.findOne({
@@ -124,14 +128,18 @@ export async function GET(request: NextRequest) {
           });
           isLiked = !!like;
         }
+        
         return {
           ...post,
+          authorName: author?.name || '',
+          authorDisplayName: author?.displayName || author?.name || '',
+          authorImage: author?.image || '',
           isLiked,
         };
       })
     );
 
-    return NextResponse.json({ posts: postsWithLikes });
+    return NextResponse.json({ posts: postsWithAuthorInfo });
   } catch (error: any) {
     console.error('Get posts error:', error);
     return NextResponse.json(

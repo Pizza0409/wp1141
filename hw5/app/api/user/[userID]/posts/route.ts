@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import mongoose, { Model, Schema } from 'mongoose';
+import User from '@/lib/models/User';
 
 interface IPost {
   _id: mongoose.Types.ObjectId;
@@ -67,11 +68,25 @@ export async function GET(
         { authorUserID: userID },
         { repostedBy: userID },
       ],
+      isDeleted: false,
     })
       .sort({ createdAt: -1 })
       .lean();
 
-    return NextResponse.json({ posts });
+    // Get author info for each post
+    const postsWithAuthorInfo = await Promise.all(
+      posts.map(async (post) => {
+        const author = await User.findOne({ userID: post.authorUserID }).lean();
+        return {
+          ...post,
+          authorName: author?.name || '',
+          authorDisplayName: author?.displayName || author?.name || '',
+          authorImage: author?.image || '',
+        };
+      })
+    );
+
+    return NextResponse.json({ posts: postsWithAuthorInfo });
   } catch (error: any) {
     console.error('Get user posts error:', error);
     return NextResponse.json(

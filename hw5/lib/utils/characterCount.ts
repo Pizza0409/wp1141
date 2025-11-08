@@ -19,30 +19,83 @@ const HASHTAG_REGEX = /#[\w]+/g;
 const MENTION_REGEX = /@[\w]+/g;
 
 export function countCharacters(text: string): CharacterCountResult {
+  if (!text || text.length === 0) {
+    return {
+      textLength: 0,
+      linkCount: 0,
+      hashtags: [],
+      mentions: [],
+      isValid: true,
+      totalCount: 0,
+    };
+  }
+
   // Extract URLs, hashtags, and mentions
   const urls = text.match(URL_REGEX) || [];
   const hashtags = text.match(HASHTAG_REGEX) || [];
   const mentions = text.match(MENTION_REGEX) || [];
 
-  // Remove URLs, hashtags, and mentions from text for counting
-  let textWithoutSpecial = text;
+  // Create a set of all special patterns to remove
+  const specialPatterns: Array<{ pattern: string; start: number; end: number }> = [];
   
-  // Remove URLs
+  // Add URLs
   urls.forEach((url) => {
-    textWithoutSpecial = textWithoutSpecial.replace(url, '');
+    const index = text.indexOf(url);
+    if (index !== -1) {
+      specialPatterns.push({
+        pattern: url,
+        start: index,
+        end: index + url.length,
+      });
+    }
   });
   
-  // Remove hashtags
+  // Add hashtags (if not part of URL)
   hashtags.forEach((tag) => {
-    textWithoutSpecial = textWithoutSpecial.replace(tag, '');
+    const index = text.indexOf(tag);
+    if (index !== -1) {
+      const isInUrl = specialPatterns.some(
+        (sp) => index >= sp.start && index < sp.end
+      );
+      if (!isInUrl) {
+        specialPatterns.push({
+          pattern: tag,
+          start: index,
+          end: index + tag.length,
+        });
+      }
+    }
   });
   
-  // Remove mentions
+  // Add mentions (if not part of URL)
   mentions.forEach((mention) => {
-    textWithoutSpecial = textWithoutSpecial.replace(mention, '');
+    const index = text.indexOf(mention);
+    if (index !== -1) {
+      const isInUrl = specialPatterns.some(
+        (sp) => index >= sp.start && index < sp.end
+      );
+      if (!isInUrl) {
+        specialPatterns.push({
+          pattern: mention,
+          start: index,
+          end: index + mention.length,
+        });
+      }
+    }
   });
 
-  // Count remaining characters (excluding spaces that were part of removed elements)
+  // Sort by start position (descending) to remove from end to start
+  specialPatterns.sort((a, b) => b.start - a.start);
+  
+  // Remove special patterns from text
+  let textWithoutSpecial = text;
+  specialPatterns.forEach((sp) => {
+    textWithoutSpecial =
+      textWithoutSpecial.substring(0, sp.start) +
+      textWithoutSpecial.substring(sp.end);
+  });
+
+  // Count remaining characters
   const textLength = textWithoutSpecial.trim().length;
   const linkCount = urls.length;
   const totalCount = textLength + linkCount * 23;

@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import connectDB from '@/lib/mongodb';
 import mongoose, { Model, Schema } from 'mongoose';
 import Like from '@/lib/models/Like';
+import User from '@/lib/models/User';
 
 interface IPost {
   _id: mongoose.Types.ObjectId;
@@ -109,6 +110,9 @@ export async function GET(
       .sort({ createdAt: -1 })
       .lean();
 
+    // Get author info for main post
+    const postAuthor = await User.findOne({ userID: post.authorUserID }).lean();
+
     // Check if current user liked this post
     let isLiked = false;
     if (session?.user?.userID) {
@@ -119,15 +123,41 @@ export async function GET(
       isLiked = !!like;
     }
 
+    // Get author info and like status for comments
+    const commentsWithAuthorInfo = await Promise.all(
+      comments.map(async (comment) => {
+        const commentAuthor = await User.findOne({
+          userID: comment.authorUserID,
+        }).lean();
+        
+        let commentIsLiked = false;
+        if (session?.user?.userID) {
+          const like = await Like.findOne({
+            userID: session.user.userID,
+            postID: comment._id.toString(),
+          });
+          commentIsLiked = !!like;
+        }
+        
+        return {
+          ...comment,
+          authorName: commentAuthor?.name || '',
+          authorDisplayName: commentAuthor?.displayName || commentAuthor?.name || '',
+          authorImage: commentAuthor?.image || '',
+          isLiked: commentIsLiked,
+        };
+      })
+    );
+
     return NextResponse.json({
       post: {
         ...post,
+        authorName: postAuthor?.name || '',
+        authorDisplayName: postAuthor?.displayName || postAuthor?.name || '',
+        authorImage: postAuthor?.image || '',
         isLiked,
       },
-      comments: comments.map((comment) => ({
-        ...comment,
-        // Note: We could also check if user liked each comment, but skipping for now
-      })),
+      comments: commentsWithAuthorInfo,
     });
   } catch (error: any) {
     console.error('Get post detail error:', error);

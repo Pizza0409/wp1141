@@ -20,12 +20,16 @@ interface PostProps {
     isRepost?: boolean;
     repostedBy?: string;
     parentPostID?: string;
+    authorName?: string;
+    authorDisplayName?: string;
+    authorImage?: string;
   };
   showActions?: boolean;
   onUpdate?: () => void;
+  disableNavigation?: boolean; // If true, clicking post won't navigate
 }
 
-export default function Post({ post, showActions = true, onUpdate }: PostProps) {
+export default function Post({ post, showActions = true, onUpdate, disableNavigation = false }: PostProps) {
   const router = useRouter();
   const { data: session } = useSession();
   const [isLiked, setIsLiked] = useState(post.isLiked || false);
@@ -98,6 +102,7 @@ export default function Post({ post, showActions = true, onUpdate }: PostProps) 
   };
 
   const handlePostClick = () => {
+    if (disableNavigation) return;
     // Only navigate if clicking on the post itself, not on action buttons
     // This allows recursive navigation for comments
     router.push(`/post/${post._id}`);
@@ -105,10 +110,28 @@ export default function Post({ post, showActions = true, onUpdate }: PostProps) 
 
   return (
     <div
-      className="border-b border-gray-800 p-4 hover:bg-gray-900/50 transition-colors cursor-pointer"
+      className={`border-b border-gray-800 p-4 hover:bg-gray-900/50 transition-colors ${
+        disableNavigation ? '' : 'cursor-pointer'
+      }`}
       onClick={handlePostClick}
     >
       <div className="flex gap-4">
+        {/* Author Avatar */}
+        <Link
+          href={`/profile/${post.authorUserID}`}
+          onClick={(e) => e.stopPropagation()}
+          className="flex-shrink-0"
+        >
+          <img
+            src={post.authorImage || '/default-avatar.png'}
+            alt={post.authorDisplayName || post.authorUserID}
+            className="w-12 h-12 rounded-full"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src =
+                'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"%3E%3Ccircle cx="24" cy="24" r="24" fill="%23333"%3E%3C/svg%3E';
+            }}
+          />
+        </Link>
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
             <Link

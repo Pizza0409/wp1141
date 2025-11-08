@@ -101,6 +101,7 @@ export default function InlinePostCreator({ onSuccess, parentPostID }: InlinePos
             onChange={(e) => {
               const newContent = e.target.value;
               const newCharCount = countCharacters(newContent);
+              // Allow input if valid, or if deleting (new length <= old length)
               if (newCharCount.isValid || newContent.length <= content.length) {
                 setContent(newContent);
               }
@@ -108,6 +109,7 @@ export default function InlinePostCreator({ onSuccess, parentPostID }: InlinePos
             placeholder="What's happening?"
             className="w-full bg-transparent text-white text-xl placeholder-gray-500 resize-none focus:outline-none min-h-[100px]"
             autoFocus
+            maxLength={1000}
           />
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-800">
             <span

@@ -18,6 +18,9 @@ interface PostData {
   isLiked?: boolean;
   isRepost?: boolean;
   repostedBy?: string;
+  authorName?: string;
+  authorDisplayName?: string;
+  authorImage?: string;
 }
 
 export default function Home() {

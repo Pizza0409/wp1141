@@ -20,6 +20,9 @@ interface PostData {
   isRepost?: boolean;
   repostedBy?: string;
   parentPostID?: string;
+  authorName?: string;
+  authorDisplayName?: string;
+  authorImage?: string;
 }
 
 export default function PostDetailPage() {
@@ -80,8 +83,8 @@ export default function PostDetailPage() {
     return null;
   }
 
-  // Determine navigation title
-  const navTitle = post.parentPostID ? 'Comment' : 'Post';
+  // Navigation title - always show "Post" as per requirements
+  const navTitle = 'Post';
 
   return (
     <div className="min-h-screen bg-black">
@@ -112,7 +115,7 @@ export default function PostDetailPage() {
           </div>
 
           {/* Main Post */}
-          <Post post={post} onUpdate={fetchPostDetail} />
+          <Post post={post} onUpdate={fetchPostDetail} disableNavigation={true} />
 
           {/* Comment Creator */}
           <div className="border-b border-gray-800">

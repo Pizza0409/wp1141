@@ -7,6 +7,11 @@ interface IUser {
   email: string;
   name: string;
   image?: string;
+  displayName?: string;
+  bio?: string;
+  backgroundImage?: string;
+  following: string[];
+  followers: string[];
   provider: 'google' | 'github' | 'facebook';
   providerAccountId: string;
   createdAt: Date;
@@ -38,6 +43,26 @@ const UserSchema = new Schema<IUser>(
     },
     image: {
       type: String,
+    },
+    displayName: {
+      type: String,
+      trim: true,
+    },
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: 160,
+    },
+    backgroundImage: {
+      type: String,
+    },
+    following: {
+      type: [String],
+      default: [],
+    },
+    followers: {
+      type: [String],
+      default: [],
     },
     provider: {
       type: String,

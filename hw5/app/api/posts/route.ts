@@ -8,6 +8,9 @@ interface IPost {
   content: string;
   authorID: string;
   authorUserID: string;
+  isRepost: boolean;
+  originalPostID?: string;
+  repostedBy?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,6 +29,16 @@ const PostSchema = new Schema<IPost>(
     authorUserID: {
       type: String,
       required: true,
+    },
+    isRepost: {
+      type: Boolean,
+      default: false,
+    },
+    originalPostID: {
+      type: String,
+    },
+    repostedBy: {
+      type: String,
     },
   },
   {

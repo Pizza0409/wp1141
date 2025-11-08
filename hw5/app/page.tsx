@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 
 interface Post {
@@ -108,9 +109,12 @@ export default function Home() {
                   <div className="flex gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="font-semibold text-white">
+                        <Link
+                          href={`/profile/${post.authorUserID}`}
+                          className="font-semibold text-white hover:underline"
+                        >
                           @{post.authorUserID}
-                        </span>
+                        </Link>
                         <span className="text-gray-400 text-sm">
                           {new Date(post.createdAt).toLocaleDateString()}
                         </span>

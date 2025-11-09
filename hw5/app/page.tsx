@@ -1,8 +1,8 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useSession, signOut } from 'next-auth/react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
 import Sidebar from '@/components/Sidebar';
 import InlinePostCreator from '@/components/InlinePostCreator';
 import Post from '@/components/Post';
@@ -23,7 +23,53 @@ interface PostData {
   authorImage?: string;
 }
 
-export default function Home() {
+// Component that uses useSearchParams - needs to be wrapped in Suspense
+function EmailVerification() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const expectedUserID = searchParams.get('expectedUserID');
+    const expectedEmail = searchParams.get('expectedEmail');
+    
+    if (expectedUserID && expectedEmail) {
+      if (status === 'authenticated' && session?.user?.email) {
+        // Verify that the logged-in email matches the expected email
+        if (session.user.email.toLowerCase() !== expectedEmail.toLowerCase()) {
+          console.error('❌ Email mismatch! Expected:', expectedEmail, 'Got:', session.user.email);
+          // Sign out the user first, then redirect
+          signOut({ redirect: false }).then(() => {
+            // Clear the URL parameters
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.delete('expectedUserID');
+            newUrl.searchParams.delete('expectedEmail');
+            router.replace(newUrl.pathname);
+            // Redirect to signin with error
+            router.push('/signin?error=EmailMismatch');
+          });
+          return;
+        }
+        
+        // Email matches, clear the URL parameters
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('expectedUserID');
+        newUrl.searchParams.delete('expectedEmail');
+        router.replace(newUrl.pathname);
+      } else if (status === 'unauthenticated') {
+        // User is not authenticated but URL has expected params, clear them
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('expectedUserID');
+        newUrl.searchParams.delete('expectedEmail');
+        router.replace(newUrl.pathname);
+      }
+    }
+  }, [status, session, searchParams, router]);
+
+  return null;
+}
+
+function HomeContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [posts, setPosts] = useState<PostData[]>([]);
@@ -129,5 +175,18 @@ export default function Home() {
         </aside>
       </div>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    }>
+      <EmailVerification />
+      <HomeContent />
+    </Suspense>
   );
 }

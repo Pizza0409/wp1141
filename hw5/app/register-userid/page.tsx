@@ -1,12 +1,11 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 
-export default function RegisterUserIDPage() {
+function RegisterUserIDContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { data: session, status } = useSession();
   const [userID, setUserID] = useState('');
   const [error, setError] = useState('');
@@ -124,6 +123,18 @@ export default function RegisterUserIDPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function RegisterUserIDPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    }>
+      <RegisterUserIDContent />
+    </Suspense>
   );
 }
 

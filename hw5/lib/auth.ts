@@ -2,7 +2,6 @@ import NextAuth from 'next-auth';
 import Google from 'next-auth/providers/google';
 import GitHub from 'next-auth/providers/github';
 import Facebook from 'next-auth/providers/facebook';
-import Credentials from 'next-auth/providers/credentials';
 import connectDB from './mongodb';
 import User from './models/User';
 
@@ -20,136 +19,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       clientId: process.env.FACEBOOK_CLIENT_ID!,
       clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
     }),
-    Credentials({
-      name: 'userID',
-      credentials: {
-        userID: { label: 'UserID', type: 'text' },
-      },
-      async authorize(credentials) {
-        // Use process.stdout.write to ensure logs appear in terminal
-        process.stdout.write('\n\n');
-        process.stdout.write('═══════════════════════════════════════════════════════════\n');
-        process.stdout.write('🔐 AUTHORIZE CALLED - USERID LOGIN ATTEMPT\n');
-        process.stdout.write('═══════════════════════════════════════════════════════════\n');
-        console.log('📥 Credentials received:', JSON.stringify(credentials, null, 2));
-        
-        if (!credentials?.userID) {
-          console.error('❌ ERROR: No userID provided in credentials');
-          process.stdout.write('═══════════════════════════════════════════════════════════\n\n');
-          return null;
-        }
-
-        try {
-          console.log('🔌 Connecting to database...');
-          await connectDB();
-          console.log('✅ Database connected successfully');
-          
-          // Trim and validate userID
-          const rawUserID = credentials.userID as string;
-          const userID = rawUserID.trim();
-          
-          // Validate userID format (same as registration)
-          if (!userID || userID.length === 0) {
-            console.log('❌ Empty userID after trim');
-            return null;
-          }
-          
-          if (!/^[a-zA-Z0-9_]+$/.test(userID)) {
-            console.log('❌ Invalid userID format:', userID);
-            return null;
-          }
-          
-          if (userID.length < 3 || userID.length > 20) {
-            console.log('❌ userID length invalid:', userID.length);
-            return null;
-          }
-          
-          console.log('🔍 Looking for user with userID:', JSON.stringify(userID));
-          console.log('🔍 userID length:', userID.length);
-          console.log('🔍 userID char codes:', Array.from(userID).map(c => c.charCodeAt(0)));
-          
-          // Try multiple query strategies to ensure we find the user
-          // First, try exact match (case-sensitive)
-          let user = await User.findOne({ userID: userID });
-          console.log('📊 Exact match query result:', user ? 'User found' : 'User not found');
-          
-          // If not found, try with trimmed comparison (in case database has extra spaces)
-          if (!user) {
-            // Query all users and compare manually to catch any edge cases
-            const allUsers = await User.find({}).select('userID email provider name image');
-            console.log('📋 Checking all users for match...');
-            for (const dbUser of allUsers) {
-              const dbUserID = String(dbUser.userID).trim();
-              if (dbUserID === userID) {
-                console.log('✅ Found match via manual comparison:', dbUserID);
-                user = dbUser;
-                break;
-              }
-            }
-          }
-          
-          console.log('📊 Final query result:', user ? 'User found' : 'User not found');
-
-          if (!user) {
-            // Debug: Show all users in database
-            const allUsers = await User.find({}).select('userID email provider').limit(20);
-            console.log('📋 All users in DB:');
-            allUsers.forEach(u => {
-              const dbUserID = String(u.userID);
-              console.log(`  - userID: "${dbUserID}" (length: ${dbUserID.length}, email: ${u.email}, provider: ${u.provider})`);
-              console.log(`    Char codes: [${Array.from(dbUserID).map(c => c.charCodeAt(0)).join(', ')}]`);
-              console.log(`    Searching for: "${userID}" (length: ${userID.length})`);
-              console.log(`    Match: ${dbUserID === userID ? 'YES' : 'NO'}`);
-            });
-            
-            // Try to find with regex (case-insensitive) for debugging
-            const caseInsensitiveMatch = await User.findOne({ 
-              userID: { $regex: new RegExp(`^${userID.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } 
-            });
-            if (caseInsensitiveMatch) {
-              console.log('⚠️ Found case-insensitive match:', caseInsensitiveMatch.userID);
-              console.log('⚠️ This suggests a case-sensitivity issue');
-              console.log('⚠️ Searching for:', userID, 'Found:', caseInsensitiveMatch.userID);
-            }
-            
-            console.error('\n❌❌❌ USER NOT FOUND ❌❌❌');
-            console.error('   Searching for userID:', JSON.stringify(userID));
-            process.stdout.write('═══════════════════════════════════════════════════════════\n');
-            console.error('❌ LOGIN FAILED - USER DOES NOT EXIST\n\n');
-            return null;
-          }
-
-          console.log('\n✅✅✅ USER FOUND! ✅✅✅');
-          console.log('  📋 User ID:', user._id.toString());
-          console.log('  👤 userID:', user.userID);
-          console.log('  📧 Email:', user.email);
-          console.log('  🏷️  Name:', user.name);
-          
-          // Return user object with all required fields
-          const userObj = {
-            id: user._id.toString(),
-            userID: user.userID,
-            email: user.email || '', // Ensure email is always present
-            name: user.name || '',
-            image: user.image || undefined,
-          };
-          
-          console.log('\n📤 Returning user object:', JSON.stringify(userObj, null, 2));
-          process.stdout.write('═══════════════════════════════════════════════════════════\n');
-          console.log('✅✅✅ AUTHORIZE SUCCESS - LOGIN APPROVED ✅✅✅\n');
-          return userObj;
-        } catch (error: any) {
-          process.stdout.write('\n');
-          process.stdout.write('═══════════════════════════════════════════════════════════\n');
-          console.error('❌❌❌ AUTHORIZE ERROR ❌❌❌');
-          console.error('Error name:', error?.name);
-          console.error('Error message:', error?.message);
-          console.error('Error stack:', error?.stack);
-          process.stdout.write('═══════════════════════════════════════════════════════════\n\n');
-          return null;
-        }
-      },
-    }),
+    // Credentials provider removed - userID login now redirects to OAuth provider
+    // This prevents unauthorized access by knowing someone's userID
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
@@ -157,10 +28,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       console.log('Account:', account ? account.provider : 'null (credentials)');
       console.log('User email:', user.email);
       
-      // Skip for credentials provider (userID login)
+      // All sign-ins must go through OAuth providers
       if (!account) {
-        console.log('✅ Credentials provider - allowing sign in');
-        return true;
+        console.log('❌ No account provided - sign in rejected');
+        return false;
       }
 
       if (!user.email) {
@@ -189,6 +60,30 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         console.log('  - Email:', existingUser.email);
         user.id = existingUser._id.toString();
         user.userID = existingUser.userID;
+        return true;
+      }
+
+      // Check if this email is already registered with a different provider account
+      // This prevents someone from using a different OAuth account to login with someone else's userID
+      // Only reject if email exists AND provider/accountId don't match
+      const userWithEmail = await User.findOne({ email: user.email });
+      if (userWithEmail) {
+        // Email exists - check if provider and accountId match
+        if (userWithEmail.provider !== provider || userWithEmail.providerAccountId !== providerAccountId) {
+          // Email exists but with different provider/accountId
+          // This means someone is trying to login with a different OAuth account
+          console.log('❌ Email already registered with different OAuth account');
+          console.log('  - Email:', user.email);
+          console.log('  - Existing provider:', userWithEmail.provider);
+          console.log('  - Existing providerAccountId:', userWithEmail.providerAccountId);
+          console.log('  - Attempted provider:', provider);
+          console.log('  - Attempted providerAccountId:', providerAccountId);
+          return false;
+        }
+        // If provider and accountId match, allow login (this shouldn't happen as existingUser check should catch it, but just in case)
+        console.log('⚠️ Email found with matching provider/accountId but not caught by existingUser check');
+        user.id = userWithEmail._id.toString();
+        user.userID = userWithEmail.userID;
         return true;
       }
 
@@ -222,20 +117,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         console.log('  - token.email:', token.email);
         console.log('  - token.name:', token.name);
         
-        // For credentials provider (userID login), account is null
-        // Set provider to 'userID' if not already set
+        // All sign-ins must go through OAuth providers
         if (!account) {
-          token.provider = 'userID';
-          token.providerAccountId = user.id; // Use user ID as providerAccountId for userID login
-          console.log('✅ Credentials provider detected - Set provider to userID');
-          console.log('  - token.provider:', token.provider);
-          console.log('  - token.providerAccountId:', token.providerAccountId);
-        } else {
-          // For OAuth providers
-          token.provider = account.provider as string;
-          token.providerAccountId = account.providerAccountId;
-          console.log('✅ OAuth provider detected:', token.provider);
+          console.error('❌ No account provided in JWT callback - this should not happen');
+          return token;
         }
+        
+        // For OAuth providers
+        token.provider = account.provider as string;
+        token.providerAccountId = account.providerAccountId;
+        console.log('✅ OAuth provider detected:', token.provider);
       } else {
         console.log('⚠️ No user object in JWT callback (this is normal for subsequent requests)');
       }
@@ -266,17 +157,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
       }
       
-      // For userID login, also verify userID exists in database
-      if (token.provider === 'userID' && token.userID) {
-        await connectDB();
-        const dbUser = await User.findOne({ userID: token.userID });
-        if (!dbUser) {
-          console.error('JWT callback - userID login but user not found in DB:', token.userID);
-          // Don't clear token, but log the issue
-        } else {
-          console.log('JWT callback - Verified userID login user exists:', token.userID);
-        }
-      }
+      // All logins now go through OAuth, so we don't need to check for userID provider
 
       return token;
     },

@@ -63,25 +63,29 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return true;
       }
 
-      // Check if this email is already registered with a different provider account
-      // This prevents someone from using a different OAuth account to login with someone else's userID
-      // Only reject if email exists AND provider/accountId don't match
+      // Check if this email is already registered (with any provider)
+      // If email matches, allow login and link to existing user account
       const userWithEmail = await User.findOne({ email: user.email });
       if (userWithEmail) {
-        // Email exists - check if provider and accountId match
+        // Email exists - allow login and use existing user account
+        // This allows users to login with different OAuth providers if they have the same email
+        console.log('✅ Email found - linking to existing user account');
+        console.log('  - Email:', user.email);
+        console.log('  - Existing provider:', userWithEmail.provider);
+        console.log('  - Existing providerAccountId:', userWithEmail.providerAccountId);
+        console.log('  - New provider:', provider);
+        console.log('  - New providerAccountId:', providerAccountId);
+        console.log('  - User ID:', userWithEmail._id.toString());
+        console.log('  - userID:', userWithEmail.userID);
+        
+        // Update provider info if different (allows linking multiple providers to same account)
         if (userWithEmail.provider !== provider || userWithEmail.providerAccountId !== providerAccountId) {
-          // Email exists but with different provider/accountId
-          // This means someone is trying to login with a different OAuth account
-          console.log('❌ Email already registered with different OAuth account');
-          console.log('  - Email:', user.email);
-          console.log('  - Existing provider:', userWithEmail.provider);
-          console.log('  - Existing providerAccountId:', userWithEmail.providerAccountId);
-          console.log('  - Attempted provider:', provider);
-          console.log('  - Attempted providerAccountId:', providerAccountId);
-          return false;
+          console.log('📝 Updating provider info for existing user');
+          userWithEmail.provider = provider;
+          userWithEmail.providerAccountId = providerAccountId;
+          await userWithEmail.save();
         }
-        // If provider and accountId match, allow login (this shouldn't happen as existingUser check should catch it, but just in case)
-        console.log('⚠️ Email found with matching provider/accountId but not caught by existingUser check');
+        
         user.id = userWithEmail._id.toString();
         user.userID = userWithEmail.userID;
         return true;

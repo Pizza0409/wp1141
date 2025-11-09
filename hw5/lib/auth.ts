@@ -46,49 +46,68 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       console.log('🔍 Checking for existing user with provider:', provider, 'accountId:', providerAccountId);
 
-      // Check if user exists with this provider
+      // Check if user exists with this provider and accountId
       const existingUser = await User.findOne({
         provider,
         providerAccountId,
       });
 
       if (existingUser) {
-        // User exists, update session info
+        // User exists with matching provider and accountId, update session info
         console.log('✅ Existing user found in database');
         console.log('  - User ID:', existingUser._id.toString());
         console.log('  - userID:', existingUser.userID);
         console.log('  - Email:', existingUser.email);
+        console.log('  - Provider:', existingUser.provider);
         user.id = existingUser._id.toString();
         user.userID = existingUser.userID;
         return true;
       }
 
-      // Check if this email is already registered (with any provider)
-      // If email matches, allow login and link to existing user account
+      // Check if this email is already registered with a different provider
+      // If same email but different provider, allow login and use the userID registered with that provider
       const userWithEmail = await User.findOne({ email: user.email });
       if (userWithEmail) {
-        // Email exists - allow login and use existing user account
-        // This allows users to login with different OAuth providers if they have the same email
-        console.log('✅ Email found - linking to existing user account');
-        console.log('  - Email:', user.email);
-        console.log('  - Existing provider:', userWithEmail.provider);
-        console.log('  - Existing providerAccountId:', userWithEmail.providerAccountId);
-        console.log('  - New provider:', provider);
-        console.log('  - New providerAccountId:', providerAccountId);
-        console.log('  - User ID:', userWithEmail._id.toString());
-        console.log('  - userID:', userWithEmail.userID);
-        
-        // Update provider info if different (allows linking multiple providers to same account)
-        if (userWithEmail.provider !== provider || userWithEmail.providerAccountId !== providerAccountId) {
-          console.log('📝 Updating provider info for existing user');
-          userWithEmail.provider = provider;
-          userWithEmail.providerAccountId = providerAccountId;
-          await userWithEmail.save();
+        // Email exists - check if it's the same provider
+        if (userWithEmail.provider === provider) {
+          // Same provider but different accountId - this shouldn't happen, but handle it
+          console.log('⚠️ Email found with same provider but different accountId');
+          console.log('  - Email:', user.email);
+          console.log('  - Existing providerAccountId:', userWithEmail.providerAccountId);
+          console.log('  - Attempted providerAccountId:', providerAccountId);
+          // Reject if accountId doesn't match (security: prevent account takeover)
+          return false;
+        } else {
+          // Same email but different provider - allow login and use the userID for this provider
+          // This allows users to register multiple userIDs with the same email using different OAuth providers
+          console.log('✅ Email found with different provider - allowing login');
+          console.log('  - Email:', user.email);
+          console.log('  - Existing provider:', userWithEmail.provider);
+          console.log('  - Existing userID:', userWithEmail.userID);
+          console.log('  - New provider:', provider);
+          console.log('  - New providerAccountId:', providerAccountId);
+          
+          // Check if there's already a user with this provider and accountId (shouldn't happen, but check)
+          const userWithProvider = await User.findOne({
+            provider,
+            providerAccountId,
+          });
+          
+          if (userWithProvider) {
+            // User already exists with this provider/accountId, use that userID
+            console.log('  - Found existing user with this provider, using that userID:', userWithProvider.userID);
+            user.id = userWithProvider._id.toString();
+            user.userID = userWithProvider.userID;
+            return true;
+          }
+          
+          // New provider for this email - user will need to register a new userID
+          // Store temporary OAuth data for registration
+          console.log('  - New provider for this email - user needs to register new userID');
+          user.provider = provider;
+          user.providerAccountId = providerAccountId;
+          return true;
         }
-        
-        user.id = userWithEmail._id.toString();
-        user.userID = userWithEmail.userID;
-        return true;
       }
 
       // New user - will need to register userID

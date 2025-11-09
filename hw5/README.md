@@ -4,17 +4,7 @@ A Twitter/X-like social media application built with Next.js, NextAuth, MongoDB,
 
 ## 🌐 Deployed Link
 
-**Production URL:** [https://my-335xc77ju-yun-sheng-los-projects.vercel.app](https://my-335xc77ju-yun-sheng-los-projects.vercel.app)
-
-## 🔐 安全性措施 (Security Measures)
-
-### 註冊金鑰 (Registration Key)
-
-為了防止任意路人註冊，本應用程式需要註冊金鑰才能完成註冊。
-
-**REG_KEY:** `hw5-ntu-wp1141-2024-registration-key-xyz123`
-
-> ⚠️ **注意**: 此金鑰僅供作業評分使用，請勿用於生產環境。
+**Production URL:** [https://my-x-eta.vercel.app](https://my-x-eta.vercel.app)
 
 ### 安全功能
 

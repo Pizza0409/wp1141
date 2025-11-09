@@ -216,9 +216,14 @@ export default function Post({ post, showActions = true, onUpdate, disableNaviga
                 );
               } else if (part.type === 'hashtag') {
                 return (
-                  <span key={index} className="text-blue-400">
-                    #{part.content}
-                  </span>
+                  <Link
+                    key={index}
+                    href={part.href || '#'}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-blue-400 hover:underline"
+                  >
+                    {part.content}
+                  </Link>
                 );
               } else if (part.type === 'mention') {
                 return (

@@ -100,9 +100,12 @@ export function parseText(text: string): ParsedTextPart[] {
         href: match.content,
       });
     } else if (match.type === 'hashtag') {
+      // Extract hashtag text (remove #)
+      const hashtagText = match.content.substring(1);
       parts.push({
         type: 'hashtag',
         content: match.content,
+        href: `/hashtag/${encodeURIComponent(hashtagText)}`,
       });
     } else if (match.type === 'mention') {
       const userID = match.content.substring(1); // Remove @

@@ -2,10 +2,10 @@
 
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 
-export default function SignInPage() {
+function SignInContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [userID, setUserID] = useState('');
@@ -17,15 +17,28 @@ export default function SignInPage() {
     const errorParam = searchParams.get('error');
     const storedError = sessionStorage.getItem('loginError');
     
+    // Clear any expectedUserID/expectedEmail parameters from URL (from previous login attempts)
+    const expectedUserID = searchParams.get('expectedUserID');
+    const expectedEmail = searchParams.get('expectedEmail');
+    if (expectedUserID || expectedEmail) {
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('expectedUserID');
+      newUrl.searchParams.delete('expectedEmail');
+      router.replace(newUrl.pathname + newUrl.search);
+    }
+    
     if (errorParam) {
-      const errorMsg = '此用戶不存在';
+      let errorMsg = '此用戶不存在';
+      if (errorParam === 'EmailMismatch') {
+        errorMsg = '登入失敗：請使用註冊時使用的 OAuth 帳號登入';
+      }
       setError(errorMsg);
       sessionStorage.setItem('loginError', errorMsg);
     } else if (storedError) {
       setError(storedError);
       // Keep the error in sessionStorage so it persists
     }
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   const handleOAuthSignIn = async (provider: 'google' | 'github' | 'facebook') => {
     setError('');
@@ -51,123 +64,60 @@ export default function SignInPage() {
       const trimmedUserID = userID.trim();
       console.log('🔵 [CLIENT] Attempting to sign in with userID:', trimmedUserID);
       
-      // Direct API call to NextAuth credentials endpoint
-      // NextAuth v5 uses /api/auth/callback/credentials for credentials provider
-      // The provider name in the URL should match the provider name in auth.ts
-      const csrfResponse = await fetch('/api/auth/csrf');
-      const { csrfToken } = await csrfResponse.json();
-      console.log('🔵 [CLIENT] CSRF token obtained:', csrfToken);
-      
-      // Prepare form data for credentials login
-      // Provider name is 'userID' as defined in lib/auth.ts
-      // Note: NextAuth v5 may need 'json=true' in query string, not form data
-      const formData = new URLSearchParams();
-      formData.append('userID', trimmedUserID);
-      formData.append('csrfToken', csrfToken);
-      formData.append('callbackUrl', '/');
-      
-      // Add json=true to URL query string to get JSON response
-      const endpoint = `/api/auth/callback/credentials?json=true`;
-      
-      console.log('🔵 [CLIENT] Sending POST request to:', endpoint);
-      console.log('🔵 [CLIENT] Form data:', formData.toString());
-      
-      // Send credentials login request
-      // Note: NextAuth v5 uses /api/auth/callback/credentials for all credentials providers
-      // The provider is identified by the 'userID' field in the form data
-      // Add json=true to query string to get JSON response instead of HTML
-      const loginResponse = await fetch(endpoint, {
+      // First, check if userID exists and get the provider
+      const checkResponse = await fetch('/api/auth/check-userid', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'application/json',
         },
-        body: formData.toString(),
+        body: JSON.stringify({ userID: trimmedUserID }),
       });
-      
-      console.log('🔵 [CLIENT] Login response status:', loginResponse.status);
-      console.log('🔵 [CLIENT] Login response headers:', Object.fromEntries(loginResponse.headers.entries()));
-      
-      // Check content type - NextAuth may return HTML on error
-      const contentType = loginResponse.headers.get('content-type') || '';
-      console.log('🔵 [CLIENT] Response content-type:', contentType);
-      
-      let result: any = null;
-      if (contentType.includes('application/json')) {
-        // JSON response
-        result = await loginResponse.json();
-        console.log('🔵 [CLIENT] Login response body (JSON):', result);
-      } else {
-        // HTML response (likely an error page or redirect)
-        const htmlText = await loginResponse.text();
-        console.log('🔵 [CLIENT] Login response body (HTML, first 500 chars):', htmlText.substring(0, 500));
-        
-        // Check if response is a redirect
-        const location = loginResponse.headers.get('location');
-        if (location) {
-          console.log('🔵 [CLIENT] Redirect detected to:', location);
-          // Check if redirect contains error
-          const url = new URL(location, window.location.origin);
-          const error = url.searchParams.get('error');
-          if (error) {
-            result = { error, ok: false };
-            console.log('🔵 [CLIENT] Error in redirect URL:', error);
-          } else {
-            // Successful redirect
-            result = { ok: true, url: location };
-            console.log('🔵 [CLIENT] Successful redirect');
-          }
-        } else {
-          // HTML error page - try to extract error message
-          result = { error: 'CredentialsSignin', ok: false };
-          console.log('🔵 [CLIENT] HTML response without redirect - treating as error');
-        }
+
+      if (!checkResponse.ok) {
+        const errorData = await checkResponse.json();
+        const errorMsg = checkResponse.status === 404 ? '此用戶不存在' : (errorData.error || '查詢用戶失敗');
+        console.error('🔵 [CLIENT] Check userID failed:', errorMsg);
+        setError(errorMsg);
+        setLoading(false);
+        return;
       }
 
-      // Handle response
-      if (loginResponse.ok) {
-        // Check if login was successful
-        if (result?.ok || result?.url || loginResponse.status === 200) {
-          console.log('🔵 [CLIENT] Login successful!');
-          // Clear any stored error
-          sessionStorage.removeItem('loginError');
-          
-          // Verify session is set before redirecting
-          setTimeout(async () => {
-            try {
-              const sessionResponse = await fetch('/api/auth/session');
-              const session = await sessionResponse.json();
-              console.log('🔵 [CLIENT] Session after login:', session);
-              
-              if (session?.user?.userID) {
-                console.log('🔵 [CLIENT] Session verified, redirecting to home');
-                window.location.href = '/';
-              } else {
-                console.error('🔵 [CLIENT] Session not properly set, userID missing');
-                setError('登入失敗，session 未正確設置');
-                setLoading(false);
-              }
-            } catch (err) {
-              console.error('🔵 [CLIENT] Error verifying session:', err);
-              // Still try to redirect, session might be set
-              window.location.href = '/';
-            }
-          }, 500);
-        } else {
-          // Login failed
-          const errorMsg = result?.error === 'CredentialsSignin' ? '此用戶不存在' : (result?.error || '登入失敗');
-          console.error('🔵 [CLIENT] Login failed:', errorMsg);
-          setError(errorMsg);
-          sessionStorage.setItem('loginError', errorMsg);
-          setLoading(false);
-        }
-      } else {
-        // HTTP error
-        const errorMsg = result?.error === 'CredentialsSignin' ? '此用戶不存在' : (result?.error || '登入失敗');
-        console.error('🔵 [CLIENT] Login HTTP error:', loginResponse.status, errorMsg);
-        setError(errorMsg);
-        sessionStorage.setItem('loginError', errorMsg);
+      const { provider, email } = await checkResponse.json();
+      console.log('🔵 [CLIENT] UserID found, provider:', provider, 'email:', email);
+
+      if (!provider || !['google', 'github', 'facebook'].includes(provider)) {
+        console.error('🔵 [CLIENT] Invalid provider:', provider);
+        setError('無法確定登入方式，請聯繫客服');
         setLoading(false);
+        return;
       }
+
+      // Prepare callbackUrl with userID parameter for verification in callback
+      const callbackUrl = new URL('/', window.location.origin);
+      callbackUrl.searchParams.set('expectedUserID', trimmedUserID);
+      callbackUrl.searchParams.set('expectedEmail', email);
+
+      // Prepare authorization parameters based on provider
+      const authorizationParams: Record<string, string> = {};
+      
+      // Google supports login_hint to pre-fill the email
+      if (provider === 'google' && email) {
+        authorizationParams.login_hint = email;
+      }
+      // GitHub doesn't support login_hint, but we'll verify in callback
+      // Facebook doesn't support login_hint either
+
+      // Redirect to OAuth login with the provider
+      // This will redirect to the OAuth provider's login page
+      // After successful OAuth login, NextAuth will handle the session
+      console.log('🔵 [CLIENT] Redirecting to OAuth provider:', provider, 'with params:', authorizationParams);
+      await signIn(provider, {
+        callbackUrl: callbackUrl.toString(),
+        redirect: true,
+        ...(Object.keys(authorizationParams).length > 0 && {
+          authorizationParams,
+        }),
+      });
     } catch (err) {
       console.error('🔵 [CLIENT] SignIn exception:', err);
       const errorMsg = '發生錯誤，請重試';
@@ -270,6 +220,18 @@ export default function SignInPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    }>
+      <SignInContent />
+    </Suspense>
   );
 }
 

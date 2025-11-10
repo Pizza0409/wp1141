@@ -15,7 +15,9 @@ export interface CharacterCountResult {
 }
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
-const HASHTAG_REGEX = /#[\w]+/g;
+// Support Unicode characters (including Chinese, Japanese, Korean, etc.)
+// \p{L} matches any Unicode letter, \p{N} matches any Unicode number
+const HASHTAG_REGEX = /#[\p{L}\p{N}_]+/gu;
 const MENTION_REGEX = /@[\w]+/g;
 
 export function countCharacters(text: string): CharacterCountResult {

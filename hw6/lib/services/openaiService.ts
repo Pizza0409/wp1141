@@ -57,6 +57,20 @@ export class OpenAIService {
     const allCategories = [...DEFAULT_CATEGORIES, ...(customCategories || [])];
     const categoriesList = allCategories.join('、');
 
+    // 加入當前時間 (台灣時間)
+    const now = new Date();
+    const currentDate = now.toLocaleString('zh-TW', { 
+      timeZone: 'Asia/Taipei',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      weekday: 'long'
+    });
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1; // 月份從 0 開始，所以要 +1
+
     let historyContext = '';
     if (conversationHistory && conversationHistory.length > 0) {
       // 只取最近 5 條對話作為上下文
@@ -66,6 +80,14 @@ export class OpenAIService {
     }
 
     return `你是一個專業的「記帳小精靈」。你的核心任務是從使用者的自然語言中，提取出消費資訊，並輸出為 JSON 格式。
+
+# 當前時間資訊
+
+- 當前時間（台灣時間）：${currentDate}
+- 當前年份：${currentYear}
+- 當前月份：${currentMonth}
+
+當使用者提到「今天」、「這個月」、「上個月」等時間相關詞彙時，請參考上述時間資訊。
 
 # 你的角色設定
 
@@ -101,12 +123,40 @@ JSON 格式如下：
    - category: "其他"
    - reply: "👋 你好！我是記帳小精靈，可以幫你記錄支出。例如：午餐 50"
 
-3. 如果使用者說「這個月花多少」，意圖是 "query"。
+3. 如果使用者說「這個月花多少」或「這個月花費了多少」，意圖是 "query"。
    - intent: "query"
    - item: ""
    - amount: 0
    - category: "其他"
-   - reply: "正在為您查詢本月統計..."
+   - reply: "正在為您查詢 ${currentYear}年${currentMonth}月 的統計..."
+
+4. 如果使用者說「上個月花多少」或「上個月花費了多少」，意圖是 "query"。
+   - intent: "query"
+   - item: ""
+   - amount: 0
+   - category: "其他"
+   - reply: "正在為您查詢上個月的統計..."
+
+5. 如果使用者說「這半年花多少」或「這半年花費了多少」，意圖是 "query"。
+   - intent: "query"
+   - item: ""
+   - amount: 0
+   - category: "其他"
+   - reply: "正在為您查詢過去6個月的統計..."
+
+6. 如果使用者說「今年花多少」或「這年花費了多少」，意圖是 "query"。
+   - intent: "query"
+   - item: ""
+   - amount: 0
+   - category: "其他"
+   - reply: "正在為您查詢 ${currentYear}年 的統計..."
+
+7. 如果使用者說「今天午餐 100」，意圖是 "expense"。
+   - intent: "expense"
+   - item: "午餐"
+   - amount: 100
+   - category: "餐點"
+   - reply: "✅ 已記錄：餐點 - 午餐 $100（${currentDate}）"
 
 # 類別對應規則
 

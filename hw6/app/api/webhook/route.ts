@@ -15,11 +15,37 @@ const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 
 // 驗證簽名
 function validateSignature(body: string, signature: string): boolean {
-  const hash = crypto
-    .createHmac('sha256', channelSecret)
-    .update(body)
-    .digest('base64');
-  return hash === signature;
+  if (!channelSecret) {
+    logger.error('LINE_CHANNEL_SECRET 未設定');
+    return false;
+  }
+
+  if (!signature) {
+    logger.warn('簽名不存在');
+    return false;
+  }
+
+  try {
+    const hash = crypto
+      .createHmac('sha256', channelSecret)
+      .update(body, 'utf8')
+      .digest('base64');
+    
+    const isValid = hash === signature;
+    
+    if (!isValid) {
+      logger.warn('簽名驗證失敗', {
+        expected: hash,
+        received: signature,
+        channelSecretLength: channelSecret.length,
+      });
+    }
+    
+    return isValid;
+  } catch (error: any) {
+    logger.error('簽名驗證過程出錯', { error: error.message });
+    return false;
+  }
 }
 
 // 處理 webhook 事件
@@ -115,7 +141,13 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
         return;
       } else if (parsed.intent === 'query') {
         // 查詢統計
-        if (userMessage.includes('今天的記錄') || userMessage.includes('今日記錄')) {
+        let statistics: any;
+        let replyText = '';
+
+        // 判斷查詢類型
+        const message = userMessage.toLowerCase();
+        
+        if (message.includes('今天的記錄') || message.includes('今日記錄') || message.includes('今天')) {
           // 查詢今日記錄
           const expenses = await expenseService.getTodayExpenses(userId);
           await lineService.replyExpenseList(replyToken, expenses);
@@ -125,22 +157,38 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
             content: `今日記錄：共 ${expenses.length} 筆`,
             timestamp: new Date(),
           });
+          return;
+        } else if (message.includes('上個月') || message.includes('上个月')) {
+          // 查詢上個月統計
+          statistics = await expenseService.getLastMonthStatistics(userId);
+          replyText = `上個月統計：總計 $${statistics.total}`;
+        } else if (message.includes('這半年') || message.includes('这半年') || message.includes('半年')) {
+          // 查詢這半年統計
+          statistics = await expenseService.getHalfYearStatistics(userId);
+          replyText = `過去6個月統計：總計 $${statistics.total}`;
+        } else if (message.includes('今年') || message.includes('這年') || message.includes('这年')) {
+          // 查詢今年統計
+          statistics = await expenseService.getYearStatistics(userId);
+          replyText = `${statistics.month}統計：總計 $${statistics.total}`;
         } else {
-          // 查詢月度統計
+          // 預設：查詢本月統計
           const now = new Date();
-          const statistics = await expenseService.getMonthlyStatistics(
+          statistics = await expenseService.getMonthlyStatistics(
             userId,
             now.getFullYear(),
             now.getMonth() + 1
           );
-          await lineService.replyStatistics(replyToken, statistics);
-          
-          await conversationRepository.addMessage(userId, {
-            role: 'assistant',
-            content: `統計：${statistics.month} 總計 $${statistics.total}`,
-            timestamp: new Date(),
-          });
+          replyText = `本月統計：總計 $${statistics.total}`;
         }
+
+        // 回覆統計結果
+        await lineService.replyStatistics(replyToken, statistics);
+        
+        await conversationRepository.addMessage(userId, {
+          role: 'assistant',
+          content: replyText,
+          timestamp: new Date(),
+        });
         return;
       } else {
         // chat 或其他：使用 LLM 生成的 reply
@@ -236,10 +284,20 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
 // POST handler
 export async function POST(request: NextRequest) {
   try {
+    // 檢查環境變數
+    if (!channelSecret) {
+      logger.error('LINE_CHANNEL_SECRET 環境變數未設定');
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
+
     const body = await request.text();
     const signature = request.headers.get('x-line-signature');
 
     if (!signature) {
+      logger.warn('缺少 x-line-signature 標頭');
       return NextResponse.json(
         { error: 'Missing signature' },
         { status: 400 }
@@ -248,7 +306,11 @@ export async function POST(request: NextRequest) {
 
     // 驗證簽名
     if (!validateSignature(body, signature)) {
-      logger.warn('Webhook 簽名驗證失敗');
+      logger.warn('Webhook 簽名驗證失敗', {
+        hasBody: !!body,
+        bodyLength: body.length,
+        hasSignature: !!signature,
+      });
       return NextResponse.json(
         { error: 'Invalid signature' },
         { status: 401 }
@@ -256,14 +318,32 @@ export async function POST(request: NextRequest) {
     }
 
     // 解析事件
-    const events: WebhookEvent[] = JSON.parse(body).events || [];
+    let events: WebhookEvent[] = [];
+    try {
+      const parsed = JSON.parse(body);
+      events = parsed.events || [];
+      
+      if (events.length === 0) {
+        logger.info('收到空事件列表');
+        return NextResponse.json({ success: true });
+      }
+    } catch (parseError: any) {
+      logger.error('解析 JSON 失敗', { error: parseError.message, body: body.substring(0, 200) });
+      return NextResponse.json(
+        { error: 'Invalid JSON' },
+        { status: 400 }
+      );
+    }
 
     // 處理所有事件
     await Promise.all(events.map(handleEvent));
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    logger.error('Webhook 處理失敗', { error: error.message });
+    logger.error('Webhook 處理失敗', { 
+      error: error.message,
+      stack: error.stack,
+    });
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -274,5 +354,17 @@ export async function POST(request: NextRequest) {
 // GET handler (用於 webhook 驗證)
 export async function GET() {
   return NextResponse.json({ status: 'ok' });
+}
+
+// OPTIONS handler (用於 CORS preflight)
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, x-line-signature',
+    },
+  });
 }
 

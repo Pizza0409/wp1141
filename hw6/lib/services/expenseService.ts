@@ -35,7 +35,7 @@ export class ExpenseService {
       return expense;
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        logger.error('記帳記錄驗證失敗', { errors: error.errors });
+        logger.error('記帳記錄驗證失敗', { errors: error.issues });
         throw new Error('輸入資料格式錯誤');
       }
       logger.error('建立記帳記錄失敗', { error: error.message });
@@ -124,6 +124,94 @@ export class ExpenseService {
       logger.error('查詢每月統計失敗', { error: error.message, userId });
       throw error;
     }
+  }
+
+  /**
+   * 取得指定日期範圍的統計
+   */
+  async getStatisticsByDateRange(
+    userId: string,
+    startDate: Date,
+    endDate: Date,
+    periodName?: string
+  ): Promise<MonthlyStatistics> {
+    try {
+      logger.info('查詢日期範圍統計', { userId, startDate, endDate });
+
+      const expenses = await expenseRepository.findByUserIdAndDateRange(
+        userId,
+        startDate,
+        endDate
+      );
+
+      const total = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+      const byCategory: Record<string, number> = {};
+
+      expenses.forEach((exp) => {
+        byCategory[exp.category] = (byCategory[exp.category] || 0) + exp.amount;
+      });
+
+      const startStr = startDate.toISOString().split('T')[0];
+      const endStr = endDate.toISOString().split('T')[0];
+      const period = periodName || `${startStr} 至 ${endStr}`;
+
+      return {
+        month: period,
+        total,
+        byCategory,
+      };
+    } catch (error: any) {
+      logger.error('查詢日期範圍統計失敗', { error: error.message, userId });
+      throw error;
+    }
+  }
+
+  /**
+   * 取得上個月的統計
+   */
+  async getLastMonthStatistics(userId: string): Promise<MonthlyStatistics> {
+    const now = new Date();
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const year = lastMonth.getFullYear();
+    const month = lastMonth.getMonth() + 1;
+
+    return this.getMonthlyStatistics(userId, year, month);
+  }
+
+  /**
+   * 取得這半年的統計（過去6個月）
+   */
+  async getHalfYearStatistics(userId: string): Promise<MonthlyStatistics> {
+    const now = new Date();
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    sixMonthsAgo.setHours(0, 0, 0, 0);
+    const endDate = new Date(now);
+    endDate.setHours(23, 59, 59, 999);
+
+    return this.getStatisticsByDateRange(
+      userId,
+      sixMonthsAgo,
+      endDate,
+      '過去6個月'
+    );
+  }
+
+  /**
+   * 取得這年的統計（今年1月至今）
+   */
+  async getYearStatistics(userId: string): Promise<MonthlyStatistics> {
+    const now = new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    startOfYear.setHours(0, 0, 0, 0);
+    const endDate = new Date(now);
+    endDate.setHours(23, 59, 59, 999);
+
+    return this.getStatisticsByDateRange(
+      userId,
+      startOfYear,
+      endDate,
+      `${now.getFullYear()}年`
+    );
   }
 
   /**

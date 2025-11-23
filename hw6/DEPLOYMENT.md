@@ -116,7 +116,7 @@ git push -u origin main
 - 前往 Line Developers Console
 - 選擇你的 Channel
 - 前往 "Messaging API" 頁籤
-- 在 "Webhook URL" 欄位輸入：`https://your-app.vercel.app/api/webhook`
+- 在 "Webhook URL" 欄位輸入：`https://your-app.vercel.app/api/line`
 - 點擊 "Update"
 - 點擊 "Verify" 驗證連線
 

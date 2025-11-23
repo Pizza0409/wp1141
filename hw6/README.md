@@ -26,7 +26,7 @@
 hw6/
 ├── app/
 │   ├── api/
-│   │   ├── webhook/route.ts          # Line webhook 端點
+│   │   ├── line/route.ts             # Line webhook 端點
 │   │   └── admin/                     # 管理後台 API
 │   │       ├── conversations/route.ts
 │   │       ├── statistics/route.ts
@@ -120,7 +120,7 @@ npm start
 部署到 Vercel 後，在 Line Developers Console 設定 Webhook URL：
 
 ```
-https://your-app.vercel.app/api/webhook
+https://your-app.vercel.app/api/line
 ```
 
 ### 3. 啟用 Webhook

@@ -71,12 +71,12 @@ npm run dev
 
 ```bash
 # 測試 GET 端點（應該返回 { "status": "ok" }）
-curl http://localhost:3000/api/webhook
+curl http://localhost:3000/api/line
 ```
 
 3. **透過 Line Bot 測試**
 
-- 在 Line Developers Console 設定 Webhook URL 為 `https://your-ngrok-url.ngrok.io/api/webhook`
+- 在 Line Developers Console 設定 Webhook URL 為 `https://your-ngrok-url.ngrok.io/api/line`
 - 使用 ngrok 將本地伺服器暴露到公網：
   ```bash
   ngrok http 3000

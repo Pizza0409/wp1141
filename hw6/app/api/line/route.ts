@@ -10,6 +10,10 @@ import userRepository from '@/lib/repositories/userRepository';
 import conversationRepository from '@/lib/repositories/conversationRepository';
 import logger from '@/lib/services/logger';
 
+// 設定 runtime 為 nodejs（確保在 Node.js 環境運行）
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 const channelSecret = process.env.LINE_CHANNEL_SECRET || '';
 const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 
@@ -282,8 +286,10 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
 }
 
 // POST handler
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<Response> {
   try {
+    logger.info('收到 LINE webhook 請求');
+
     // 檢查環境變數
     if (!channelSecret) {
       logger.error('LINE_CHANNEL_SECRET 環境變數未設定');
@@ -325,8 +331,10 @@ export async function POST(request: NextRequest) {
       
       if (events.length === 0) {
         logger.info('收到空事件列表');
-        return NextResponse.json({ success: true });
+        return new Response('OK', { status: 200 });
       }
+
+      logger.info('收到 LINE webhook 事件', { eventCount: events.length, eventType: events[0]?.type });
     } catch (parseError: any) {
       logger.error('解析 JSON 失敗', { error: parseError.message, body: body.substring(0, 200) });
       return NextResponse.json(
@@ -338,7 +346,8 @@ export async function POST(request: NextRequest) {
     // 處理所有事件
     await Promise.all(events.map(handleEvent));
 
-    return NextResponse.json({ success: true });
+    logger.info('處理 LINE webhook 事件完成');
+    return new Response('OK', { status: 200 });
   } catch (error: any) {
     logger.error('Webhook 處理失敗', { 
       error: error.message,
@@ -352,12 +361,12 @@ export async function POST(request: NextRequest) {
 }
 
 // GET handler (用於 webhook 驗證)
-export async function GET() {
-  return NextResponse.json({ status: 'ok' });
+export async function GET(): Promise<Response> {
+  return new Response('LINE bot webhook endpoint', { status: 200 });
 }
 
 // OPTIONS handler (用於 CORS preflight)
-export async function OPTIONS() {
+export async function OPTIONS(): Promise<Response> {
   return new NextResponse(null, {
     status: 200,
     headers: {

@@ -28,11 +28,11 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const rawQuery = {
-      userId: searchParams.get('userId'),
-      limit: searchParams.get('limit'),
-      skip: searchParams.get('skip'),
-      startDate: searchParams.get('startDate'),
-      endDate: searchParams.get('endDate'),
+      userId: searchParams.get('userId') ?? undefined,
+      limit: searchParams.get('limit') ?? undefined,
+      skip: searchParams.get('skip') ?? undefined,
+      startDate: searchParams.get('startDate') ?? undefined,
+      endDate: searchParams.get('endDate') ?? undefined,
     };
     const query = QuerySchema.parse(rawQuery);
 

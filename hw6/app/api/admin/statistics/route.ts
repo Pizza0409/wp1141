@@ -27,9 +27,9 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const rawQuery = {
-      userId: searchParams.get('userId'),
-      year: searchParams.get('year'),
-      month: searchParams.get('month'),
+      userId: searchParams.get('userId') ?? undefined,
+      year: searchParams.get('year') ?? undefined,
+      month: searchParams.get('month') ?? undefined,
     };
     const query = QuerySchema.parse(rawQuery);
 

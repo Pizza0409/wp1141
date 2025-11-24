@@ -2,6 +2,15 @@ import AdminUser, { IAdminUser } from '@/lib/models/adminUser';
 import logger from '@/lib/services/logger';
 
 export class AdminUserRepository {
+  async findById(id: string): Promise<IAdminUser | null> {
+    try {
+      return await AdminUser.findById(id).exec();
+    } catch (error: any) {
+      logger.error('查詢管理使用者（依 ID）失敗', { error: error.message, id });
+      throw error;
+    }
+  }
+
   async findByUsername(username: string): Promise<IAdminUser | null> {
     try {
       return await AdminUser.findOne({ username }).exec();
@@ -46,6 +55,16 @@ export class AdminUserRepository {
       return await AdminUser.find().exec();
     } catch (error: any) {
       logger.error('查詢所有管理使用者失敗', { error: error.message });
+      throw error;
+    }
+  }
+
+  async deleteById(id: string): Promise<boolean> {
+    try {
+      const result = await AdminUser.deleteOne({ _id: id }).exec();
+      return result.deletedCount === 1;
+    } catch (error: any) {
+      logger.error('刪除管理使用者失敗', { error: error.message, id });
       throw error;
     }
   }

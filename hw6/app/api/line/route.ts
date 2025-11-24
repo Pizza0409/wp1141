@@ -49,21 +49,37 @@ function parseDetailRequest(message: string): { year: number; month: number; lab
   return { year: targetYear, month: targetMonth, label };
 }
 
-function parseDeleteCommand(message: string): { keyword: string } | null {
+function parseDeleteCommand(
+  message: string
+): { keyword?: string; index?: number } | null {
   const match = message.trim().match(/^刪除(.+)$/);
   if (!match) {
     return null;
   }
-  const keyword = match[1].trim();
-  if (!keyword) {
+  const content = match[1].trim();
+  if (!content) {
     return null;
   }
-  return { keyword };
+
+  const indexMatch = content.match(/第?(\d+)(?:筆|條)?/);
+  if (indexMatch) {
+    const index = parseInt(indexMatch[1], 10);
+    if (index > 0) {
+      return { index };
+    }
+  }
+
+  return { keyword: content };
 }
 
 function parseUpdateCommand(
   message: string
-): { keyword: string; newDetail?: string; newAmount?: number } | null {
+): {
+  keyword?: string;
+  index?: number;
+  newDetail?: string;
+  newAmount?: number;
+} | null {
   const match = message.trim().match(/^(修改|更改|更新)(.+)$/);
   if (!match) {
     return null;
@@ -73,6 +89,13 @@ function parseUpdateCommand(
     return null;
   }
 
+  const indexMatch = content.match(/第?(\d+)(?:筆|條)?/);
+  let index: number | undefined;
+  if (indexMatch) {
+    index = parseInt(indexMatch[1], 10);
+    content = content.replace(indexMatch[0], '').trim();
+  }
+
   let newAmount: number | undefined;
   const amountMatch = content.match(/(\d+)(?!.*\d)/);
   if (amountMatch) {
@@ -80,13 +103,14 @@ function parseUpdateCommand(
     content = content.replace(amountMatch[1], '').trim();
   }
 
-  const keyword = content.trim() || (newAmount ? `${newAmount}` : '');
-  if (!keyword && newAmount === undefined) {
+  const keyword = content.trim();
+  if (!keyword && index === undefined && newAmount === undefined) {
     return null;
   }
 
   return {
-    keyword: keyword || '',
+    keyword: keyword || undefined,
+    index,
     newDetail: content || undefined,
     newAmount,
   };
@@ -294,16 +318,26 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
     const deleteCommand = parseDeleteCommand(userMessage);
     if (deleteCommand) {
       const recentExpenses = await expenseService.getUserExpenses(userId, 50, 0);
-      const target = recentExpenses.find(
-        (expense) =>
-          expense.detail?.includes(deleteCommand.keyword) ||
-          expense.category?.includes(deleteCommand.keyword)
-      );
+      let target;
+      if (deleteCommand.index !== undefined) {
+        const idx = deleteCommand.index - 1;
+        if (idx >= 0 && idx < recentExpenses.length) {
+          target = recentExpenses[idx];
+        }
+      } else if (deleteCommand.keyword) {
+        target = recentExpenses.find(
+          (expense) =>
+            expense.detail?.includes(deleteCommand.keyword as string) ||
+            expense.category?.includes(deleteCommand.keyword as string)
+        );
+      }
 
       if (!target) {
         await lineService.replyTextMessage(
           replyToken,
-          `找不到包含「${deleteCommand.keyword}」的記帳紀錄，請確認內容或輸入更精確的描述。`
+          deleteCommand.index
+            ? `找不到第 ${deleteCommand.index} 筆記帳紀錄。請先輸入「花費細項」確認序號，再試一次。`
+            : `找不到包含「${deleteCommand.keyword}」的記帳紀錄，請確認內容或輸入更精確的描述。`
         );
         await conversationRepository.addMessage(userId, {
           role: 'assistant',
@@ -330,18 +364,26 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
     const updateCommand = parseUpdateCommand(userMessage);
     if (updateCommand) {
       const recentExpenses = await expenseService.getUserExpenses(userId, 50, 0);
-      const target = recentExpenses.find(
-        (expense) =>
-          (updateCommand.keyword &&
-            (expense.detail?.includes(updateCommand.keyword) ||
-              expense.category?.includes(updateCommand.keyword))) ||
-          (!updateCommand.keyword && updateCommand.newAmount !== undefined)
-      );
+      let target;
+      if (updateCommand.index !== undefined) {
+        const idx = updateCommand.index - 1;
+        if (idx >= 0 && idx < recentExpenses.length) {
+          target = recentExpenses[idx];
+        }
+      } else if (updateCommand.keyword) {
+        target = recentExpenses.find(
+          (expense) =>
+            expense.detail?.includes(updateCommand.keyword as string) ||
+            expense.category?.includes(updateCommand.keyword as string)
+        );
+      }
 
       if (!target) {
         await lineService.replyTextMessage(
           replyToken,
-          `找不到需要修改的記帳紀錄，請提供更明確的描述（例如：修改午餐 120）。`
+          updateCommand.index
+            ? `找不到第 ${updateCommand.index} 筆記帳紀錄。請先輸入「花費細項」確認序號，再試一次。`
+            : '找不到需要修改的記帳紀錄，請提供更明確的描述（例如：修改午餐 120）。'
         );
         await conversationRepository.addMessage(userId, {
           role: 'assistant',

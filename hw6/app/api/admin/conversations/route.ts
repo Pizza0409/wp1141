@@ -26,9 +26,9 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const query = QuerySchema.parse({
-      limit: searchParams.get('limit'),
-      skip: searchParams.get('skip'),
-      userId: searchParams.get('userId'),
+      limit: searchParams.get('limit') ?? undefined,
+      skip: searchParams.get('skip') ?? undefined,
+      userId: searchParams.get('userId') ?? undefined,
     });
 
     let conversations;

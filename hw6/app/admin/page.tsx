@@ -229,6 +229,40 @@ export default function AdminPage() {
     }
   };
 
+  const handleDeleteViewerAccount = async (accountId: string, username: string) => {
+    if (!user || user.role !== 'admin') {
+      return;
+    }
+
+    const confirmDelete = window.confirm(`確定要刪除觀看者帳號「${username}」嗎？此操作無法復原。`);
+    if (!confirmDelete) {
+      return;
+    }
+
+    try {
+      const authHeaders = getAuthHeaders() || {};
+      const res = await fetch('/api/admin/users', {
+        method: 'DELETE',
+        headers: {
+          ...authHeaders,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: accountId }),
+      });
+
+      const data: ApiResponse<{ id: string }> = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || '刪除失敗');
+      }
+
+      setAdminAccounts((prev) => prev.filter((account) => account.id !== accountId));
+      alert(`已刪除觀看者帳號：${username}`);
+    } catch (error: any) {
+      console.error('刪除帳號失敗:', error);
+      alert(error.message || '刪除帳號失敗，請稍後再試。');
+    }
+  };
+
   // 取得統計資料
   const fetchStatistics = async () => {
     if (!user) return;
@@ -356,13 +390,17 @@ export default function AdminPage() {
     };
   }, []);
 
-  // 初始載入
+  // 使用者登入後載入資料
   useEffect(() => {
+    if (!user) {
+      return;
+    }
+
     fetchConversations();
     fetchStatistics();
     fetchExpenses();
     fetchUsers();
-  }, []);
+  }, [user]);
 
   const resolveUserLabel = (lineUserId: string) => {
     const user = lineUsers.find((u) => u.lineUserId === lineUserId);
@@ -628,57 +666,74 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* 帳號列表 */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">後台帳號列表</h2>
+        {/* 帳號列表（僅管理者可見） */}
+        {user.role === 'admin' && (
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">後台帳號列表</h2>
+              {usersLoading ? (
+                <span className="text-sm text-gray-500">載入中...</span>
+              ) : (
+                <span className="text-sm text-gray-500">
+                  共 {adminAccounts.length} 筆
+                </span>
+              )}
+            </div>
             {usersLoading ? (
-              <span className="text-sm text-gray-500">載入中...</span>
+              <div className="text-center py-6 text-gray-600">載入中...</div>
+            ) : adminAccounts.length === 0 ? (
+              <div className="text-center py-6 text-gray-600">尚無帳號資料</div>
             ) : (
-              <span className="text-sm text-gray-500">
-                共 {adminAccounts.length} 筆
-              </span>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        帳號
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        角色
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        建立時間
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        操作
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {adminAccounts.map((account) => (
+                      <tr key={account.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {account.username}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {account.role === 'admin' ? '管理者' : '觀看者'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {formatDate(account.createdAt)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {account.role === 'viewer' ? (
+                            <button
+                              onClick={() => handleDeleteViewerAccount(account.id, account.username)}
+                              className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition text-xs"
+                            >
+                              刪除
+                            </button>
+                          ) : (
+                            <span className="text-gray-400 text-xs">不可刪除</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
-          {usersLoading ? (
-            <div className="text-center py-6 text-gray-600">載入中...</div>
-          ) : adminAccounts.length === 0 ? (
-            <div className="text-center py-6 text-gray-600">尚無帳號資料</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      帳號
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      角色
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      建立時間
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {adminAccounts.map((account) => (
-                    <tr key={account.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {account.username}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {account.role === 'admin' ? '管理者' : '觀看者'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(account.createdAt)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        )}
 
         {/* 統計區域 */}
         {statistics && (

@@ -7,6 +7,8 @@ const client = new Client({
   channelSecret: process.env.LINE_CHANNEL_SECRET || '',
 });
 
+const defaultRichMenuId = process.env.LINE_DEFAULT_RICH_MENU_ID;
+
 export class LineService {
   /**
    * 回覆文字訊息
@@ -253,6 +255,43 @@ export class LineService {
   }
 
   /**
+   * 回覆花費細項列表
+   */
+  async replyExpenseDetails(
+    replyToken: string,
+    expenses: Array<{ category: string; detail: string; amount: number; timestamp: Date }>,
+    options: { periodLabel: string }
+  ): Promise<void> {
+    const { periodLabel } = options;
+
+    if (expenses.length === 0) {
+      await this.replyTextMessage(
+        replyToken,
+        `🧾 ${periodLabel} 尚無花費細項記錄`
+      );
+      return;
+    }
+
+    const total = expenses.reduce((sum, item) => sum + item.amount, 0);
+    let text = `🧾 ${periodLabel} 花費細項\n總筆數：${expenses.length} 筆｜總金額：$${total}\n\n`;
+
+    expenses.slice(0, 15).forEach((expense, index) => {
+      const date = new Date(expense.timestamp);
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const dateStr = `${month}/${day}`;
+      const note = expense.detail || '未備註';
+      text += `${index + 1}. ${dateStr}｜${expense.category}\n   $${expense.amount}｜${note}\n`;
+    });
+
+    if (expenses.length > 15) {
+      text += `\n… 還有 ${expenses.length - 15} 筆記錄`;
+    }
+
+    await this.replyTextMessage(replyToken, text);
+  }
+
+  /**
    * 回覆錯誤訊息
    */
   async replyError(
@@ -434,6 +473,22 @@ export class LineService {
     } catch (error: any) {
       logger.error('設定預設 Rich Menu 失敗', { error: error.message, richMenuId });
       throw error;
+    }
+  }
+
+  /**
+   * 連結或設定預設 Rich Menu
+   */
+  async linkDefaultRichMenu(userId?: string): Promise<void> {
+    if (!defaultRichMenuId) {
+      logger.warn('尚未設定 LINE_DEFAULT_RICH_MENU_ID，無法綁定 Rich Menu');
+      return;
+    }
+
+    if (userId) {
+      await this.setRichMenuToUser(userId, defaultRichMenuId);
+    } else {
+      await this.setDefaultRichMenu(defaultRichMenuId);
     }
   }
 

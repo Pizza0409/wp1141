@@ -83,6 +83,21 @@ export class ExpenseService {
   }
 
   /**
+   * 取得某年某月的記帳記錄
+   */
+  async getMonthlyExpenses(
+    userId: string,
+    year: number,
+    month: number
+  ): Promise<any[]> {
+    const startDate = new Date(year, month - 1, 1);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+
+    return this.getExpensesByDateRange(userId, startDate, endDate);
+  }
+
+  /**
    * 取得當日的記帳記錄
    */
   async getTodayExpenses(userId: string): Promise<any[]> {
@@ -314,6 +329,26 @@ export class ExpenseService {
         '其他',
       ];
     }
+  }
+
+  async updateExpense(
+    id: string,
+    data: Partial<{
+      category: string;
+      detail: string;
+      amount: number;
+      timestamp: Date;
+    }>
+  ): Promise<any> {
+    const updated = await expenseRepository.updateById(id, data);
+    if (!updated) {
+      throw new Error('找不到指定的記帳紀錄');
+    }
+    return updated;
+  }
+
+  async deleteExpense(id: string): Promise<boolean> {
+    return expenseRepository.deleteById(id);
   }
 }
 

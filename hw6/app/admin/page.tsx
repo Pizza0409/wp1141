@@ -212,6 +212,9 @@ export default function AdminPage() {
       if (data.success && data.data) {
         setLineUsers(data.data.lineUsers);
         setAdminAccounts(data.data.adminAccounts);
+        if (!filterUserId && data.data.lineUsers.length > 0) {
+          setFilterUserId(data.data.lineUsers[0].lineUserId);
+        }
       } else {
         console.error('取得使用者列表失敗:', data.error || '未知錯誤');
         setLineUsers([]);
@@ -360,6 +363,11 @@ export default function AdminPage() {
     fetchExpenses();
     fetchUsers();
   }, []);
+
+  const resolveUserLabel = (lineUserId: string) => {
+    const user = lineUsers.find((u) => u.lineUserId === lineUserId);
+    return user ? `${user.displayName} (${lineUserId})` : lineUserId;
+  };
 
   // 篩選變更時重新載入
   useEffect(() => {
@@ -749,7 +757,7 @@ export default function AdminPage() {
                       時間
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      使用者 ID
+                      使用者
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       類別
@@ -769,7 +777,7 @@ export default function AdminPage() {
                         {formatDate(expense.timestamp.toString())}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {expense.userId.substring(0, 20)}...
+                        {resolveUserLabel(expense.userId)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {expense.category}
@@ -824,7 +832,7 @@ export default function AdminPage() {
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <p className="font-medium text-gray-900">
-                        使用者：{conv.userId}
+                        使用者：{resolveUserLabel(conv.userId)}
                       </p>
                       <p className="text-sm text-gray-500">
                         建立時間：{formatDate(conv.createdAt)}

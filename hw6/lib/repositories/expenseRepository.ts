@@ -74,6 +74,18 @@ export class ExpenseRepository {
     return result.deletedCount > 0;
   }
 
+  async updateById(
+    id: string,
+    data: Partial<{
+      category: string;
+      detail: string;
+      amount: number;
+      timestamp: Date;
+    }>
+  ): Promise<IExpense | null> {
+    return Expense.findByIdAndUpdate(id, data, { new: true }).exec();
+  }
+
   /**
    * 查詢所有使用者的記帳記錄（用於管理後台）
    */

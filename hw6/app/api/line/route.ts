@@ -17,6 +17,81 @@ export const dynamic = 'force-dynamic';
 const channelSecret = process.env.LINE_CHANNEL_SECRET || '';
 const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 
+function parseDetailRequest(message: string): { year: number; month: number; label: string } | null {
+  const normalized = message.trim();
+  if (!/(細項|細目|明細|列表)/.test(normalized)) {
+    return null;
+  }
+
+  const now = new Date();
+  let targetYear = now.getFullYear();
+  let targetMonth = now.getMonth() + 1;
+
+  if (/上(個)?月/.test(normalized)) {
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    targetYear = lastMonth.getFullYear();
+    targetMonth = lastMonth.getMonth() + 1;
+  } else if (/這(個)?月|本月/.test(normalized)) {
+    // already default to current month
+  } else {
+    const match = normalized.match(/(\d{4})[\/\-年\.](\d{1,2})/);
+    if (match) {
+      const year = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10);
+      if (year > 0 && month >= 1 && month <= 12) {
+        targetYear = year;
+        targetMonth = month;
+      }
+    }
+  }
+
+  const label = `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
+  return { year: targetYear, month: targetMonth, label };
+}
+
+function parseDeleteCommand(message: string): { keyword: string } | null {
+  const match = message.trim().match(/^刪除(.+)$/);
+  if (!match) {
+    return null;
+  }
+  const keyword = match[1].trim();
+  if (!keyword) {
+    return null;
+  }
+  return { keyword };
+}
+
+function parseUpdateCommand(
+  message: string
+): { keyword: string; newDetail?: string; newAmount?: number } | null {
+  const match = message.trim().match(/^(修改|更改|更新)(.+)$/);
+  if (!match) {
+    return null;
+  }
+  let content = match[2].trim();
+  if (!content) {
+    return null;
+  }
+
+  let newAmount: number | undefined;
+  const amountMatch = content.match(/(\d+)(?!.*\d)/);
+  if (amountMatch) {
+    newAmount = parseInt(amountMatch[1], 10);
+    content = content.replace(amountMatch[1], '').trim();
+  }
+
+  const keyword = content.trim() || (newAmount ? `${newAmount}` : '');
+  if (!keyword && newAmount === undefined) {
+    return null;
+  }
+
+  return {
+    keyword: keyword || '',
+    newDetail: content || undefined,
+    newAmount,
+  };
+}
+
 // 驗證簽名
 function validateSignature(body: string, signature: string): boolean {
   if (!channelSecret) {
@@ -60,9 +135,8 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
     if (userId) {
       try {
         await connectDB();
-        // 設定 Rich Menu（使用預設 Rich Menu，不需要圖片）
-        // 注意：實際使用時需要在 Line Developers Console 建立 Rich Menu 並上傳圖片
-        // 這裡先跳過，因為需要圖片資源
+        // 將使用者綁定預設 Rich Menu（需在環境變數中設定 LINE_DEFAULT_RICH_MENU_ID）
+        await lineService.linkDefaultRichMenu(userId);
         logger.info('使用者加入好友', { userId });
       } catch (error: any) {
         logger.error('處理 follow 事件失敗', { error: error.message, userId });
@@ -196,6 +270,114 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
       content: userMessage,
       timestamp: new Date(),
     });
+
+    // 判斷是否為細項查詢
+    const detailRequest = parseDetailRequest(userMessage);
+    if (detailRequest) {
+      const expenses = await expenseService.getMonthlyExpenses(
+        userId,
+        detailRequest.year,
+        detailRequest.month
+      );
+      await lineService.replyExpenseDetails(replyToken, expenses, {
+        periodLabel: detailRequest.label,
+      });
+      await conversationRepository.addMessage(userId, {
+        role: 'assistant',
+        content: `已回覆 ${detailRequest.label} 的花費細項`,
+        timestamp: new Date(),
+      });
+      return;
+    }
+
+    // 判斷是否為刪除指令
+    const deleteCommand = parseDeleteCommand(userMessage);
+    if (deleteCommand) {
+      const recentExpenses = await expenseService.getUserExpenses(userId, 50, 0);
+      const target = recentExpenses.find(
+        (expense) =>
+          expense.detail?.includes(deleteCommand.keyword) ||
+          expense.category?.includes(deleteCommand.keyword)
+      );
+
+      if (!target) {
+        await lineService.replyTextMessage(
+          replyToken,
+          `找不到包含「${deleteCommand.keyword}」的記帳紀錄，請確認內容或輸入更精確的描述。`
+        );
+        await conversationRepository.addMessage(userId, {
+          role: 'assistant',
+          content: '刪除失敗：找不到符合的記帳紀錄',
+          timestamp: new Date(),
+        });
+        return;
+      }
+
+      await expenseService.deleteExpense(target._id.toString());
+      await lineService.replyTextMessage(
+        replyToken,
+        `🗑 已刪除「${target.detail}」$${target.amount}`
+      );
+      await conversationRepository.addMessage(userId, {
+        role: 'assistant',
+        content: `已刪除記錄「${target.detail}」`,
+        timestamp: new Date(),
+      });
+      return;
+    }
+
+    // 判斷是否為修改指令
+    const updateCommand = parseUpdateCommand(userMessage);
+    if (updateCommand) {
+      const recentExpenses = await expenseService.getUserExpenses(userId, 50, 0);
+      const target = recentExpenses.find(
+        (expense) =>
+          (updateCommand.keyword &&
+            (expense.detail?.includes(updateCommand.keyword) ||
+              expense.category?.includes(updateCommand.keyword))) ||
+          (!updateCommand.keyword && updateCommand.newAmount !== undefined)
+      );
+
+      if (!target) {
+        await lineService.replyTextMessage(
+          replyToken,
+          `找不到需要修改的記帳紀錄，請提供更明確的描述（例如：修改午餐 120）。`
+        );
+        await conversationRepository.addMessage(userId, {
+          role: 'assistant',
+          content: '修改失敗：找不到符合的記帳紀錄',
+          timestamp: new Date(),
+        });
+        return;
+      }
+
+      const payload: any = {};
+      if (updateCommand.newAmount !== undefined) {
+        payload.amount = updateCommand.newAmount;
+      }
+      if (updateCommand.newDetail) {
+        payload.detail = updateCommand.newDetail;
+      }
+      if (Object.keys(payload).length === 0) {
+        await lineService.replyTextMessage(
+          replyToken,
+          '請提供要修改的內容，例如「修改午餐 120」。'
+        );
+        return;
+      }
+
+      const updated = await expenseService.updateExpense(target._id.toString(), payload);
+      await lineService.replyTextMessage(
+        replyToken,
+        `✏️ 已更新「${updated.detail}」，金額：$${updated.amount}`
+      );
+      await conversationRepository.addMessage(userId, {
+        role: 'assistant',
+        content: `已更新記錄「${updated.detail}」`,
+        timestamp: new Date(),
+      });
+      return;
+    }
 
     // 處理訊息：使用新的統一解析方法
     try {

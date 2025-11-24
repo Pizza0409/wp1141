@@ -26,15 +26,19 @@ export async function GET(request: NextRequest) {
     await connectDB();
 
     const searchParams = request.nextUrl.searchParams;
-    const query = QuerySchema.parse({
+    const rawQuery = {
       userId: searchParams.get('userId'),
       year: searchParams.get('year'),
       month: searchParams.get('month'),
-    });
+    };
+    const query = QuerySchema.parse(rawQuery);
 
     const now = new Date();
-    const year = query.year || now.getFullYear();
-    const month = query.month || now.getMonth() + 1;
+    const year = query.year && query.year > 0 ? query.year : now.getFullYear();
+    const month =
+      query.month && query.month >= 1 && query.month <= 12
+        ? query.month
+        : now.getMonth() + 1;
 
     if (query.userId) {
       // 單一使用者統計

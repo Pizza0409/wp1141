@@ -10,22 +10,12 @@ export default function Home() {
         <p className="text-lg text-gray-600 max-w-md">
           整合 Line Messaging API 的智慧記帳機器人，使用 OpenAI 解析自然語言記帳訊息。
         </p>
-        <div className="flex gap-4">
-          <Link
-            href="/admin"
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            管理後台
-          </Link>
-          <a
-            href="https://github.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            查看文件
-          </a>
-        </div>
+        <Link
+          href="/admin"
+          className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow"
+        >
+          管理後台
+        </Link>
       </main>
     </div>
   );

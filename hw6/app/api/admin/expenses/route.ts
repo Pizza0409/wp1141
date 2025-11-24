@@ -27,24 +27,47 @@ export async function GET(request: NextRequest) {
     await connectDB();
 
     const searchParams = request.nextUrl.searchParams;
-    const query = QuerySchema.parse({
+    const rawQuery = {
       userId: searchParams.get('userId'),
       limit: searchParams.get('limit'),
       skip: searchParams.get('skip'),
       startDate: searchParams.get('startDate'),
       endDate: searchParams.get('endDate'),
-    });
+    };
+    const query = QuerySchema.parse(rawQuery);
+
+    // 解析日期並驗證
+    let startDate: Date | undefined;
+    let endDate: Date | undefined;
+    if (query.startDate || query.endDate) {
+      if (!query.startDate || !query.endDate) {
+        return NextResponse.json(
+          { success: false, error: 'startDate 與 endDate 必須一起提供' },
+          { status: 400 }
+        );
+      }
+
+      startDate = new Date(query.startDate);
+      endDate = new Date(query.endDate);
+
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        return NextResponse.json(
+          { success: false, error: '日期格式錯誤，請使用 ISO 字串' },
+          { status: 400 }
+        );
+      }
+    }
 
     let expenses;
 
     if (query.userId) {
       // 查詢特定使用者的記帳記錄
-      if (query.startDate && query.endDate) {
+      if (startDate && endDate) {
         // 日期範圍查詢
         expenses = await expenseRepository.findByUserIdAndDateRange(
           query.userId,
-          new Date(query.startDate),
-          new Date(query.endDate)
+          startDate,
+          endDate
         );
       } else {
         // 一般查詢
@@ -56,12 +79,12 @@ export async function GET(request: NextRequest) {
       }
     } else {
       // 查詢所有使用者的記帳記錄（管理後台功能）
-      if (query.startDate && query.endDate) {
+      if (startDate && endDate) {
         expenses = await expenseRepository.findAll(
           query.limit,
           query.skip,
-          new Date(query.startDate),
-          new Date(query.endDate)
+          startDate,
+          endDate
         );
       } else {
         expenses = await expenseRepository.findAll(

@@ -38,6 +38,21 @@ interface Expense {
   updatedAt: string;
 }
 
+interface LineUserOption {
+  id: string;
+  lineUserId: string;
+  displayName: string;
+  createdAt: string;
+}
+
+interface AdminAccount {
+  id: string;
+  username: string;
+  role: 'admin' | 'viewer';
+  createdAt: string;
+  updatedAt: string;
+}
+
 export default function AdminPage() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -47,8 +62,11 @@ export default function AdminPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [lineUsers, setLineUsers] = useState<LineUserOption[]>([]);
+  const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [expensesLoading, setExpensesLoading] = useState(false);
+  const [usersLoading, setUsersLoading] = useState(false);
   const [filterUserId, setFilterUserId] = useState('');
   const [filterMonth, setFilterMonth] = useState('');
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -172,29 +190,89 @@ export default function AdminPage() {
     }
   };
 
+  // 取得使用者 / 管理帳號列表
+  const fetchUsers = async () => {
+    if (!user) return;
+
+    setUsersLoading(true);
+    try {
+      const res = await fetch('/api/admin/users', {
+        headers: getAuthHeaders(),
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      const data: ApiResponse<{
+        lineUsers: LineUserOption[];
+        adminAccounts: AdminAccount[];
+      }> = await res.json();
+
+      if (data.success && data.data) {
+        setLineUsers(data.data.lineUsers);
+        setAdminAccounts(data.data.adminAccounts);
+      } else {
+        console.error('取得使用者列表失敗:', data.error || '未知錯誤');
+        setLineUsers([]);
+        setAdminAccounts([]);
+      }
+    } catch (error: any) {
+      console.error('取得使用者列表失敗:', error);
+      setLineUsers([]);
+      setAdminAccounts([]);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
   // 取得統計資料
   const fetchStatistics = async () => {
     if (!user) return;
     
     try {
       const params = new URLSearchParams();
-      if (filterUserId) params.append('userId', filterUserId);
-      if (filterMonth) {
-        const [year, month] = filterMonth.split('-');
-        params.append('year', year);
-        params.append('month', month);
+      if (filterUserId && filterUserId.trim()) {
+        params.append('userId', filterUserId.trim());
+      }
+      if (filterMonth && filterMonth.trim()) {
+        // 驗證月份格式：YYYY-MM
+        const monthMatch = filterMonth.trim().match(/^(\d{4})-(\d{2})$/);
+        if (monthMatch) {
+          const [, year, month] = monthMatch;
+          const yearNum = parseInt(year, 10);
+          const monthNum = parseInt(month, 10);
+          
+          if (yearNum > 0 && monthNum >= 1 && monthNum <= 12) {
+            params.append('year', year);
+            params.append('month', month);
+          } else {
+            console.warn('無效的月份格式:', filterMonth);
+          }
+        } else {
+          console.warn('月份格式錯誤，應為 YYYY-MM:', filterMonth);
+        }
       }
 
       const res = await fetch(`/api/admin/statistics?${params}`, {
         headers: getAuthHeaders(),
       });
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      
       const data: ApiResponse<Statistics> = await res.json();
 
       if (data.success && data.data) {
         setStatistics(data.data);
+      } else {
+        console.error('取得統計資料失敗:', data.error || '未知錯誤');
+        setStatistics(null);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('取得統計資料失敗:', error);
+      setStatistics(null);
     }
   };
 
@@ -205,26 +283,50 @@ export default function AdminPage() {
     setExpensesLoading(true);
     try {
       const params = new URLSearchParams();
-      if (filterUserId) params.append('userId', filterUserId);
-      if (filterMonth) {
-        const [year, month] = filterMonth.split('-');
-        const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-        const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59, 999);
-        params.append('startDate', startDate.toISOString());
-        params.append('endDate', endDate.toISOString());
+      if (filterUserId && filterUserId.trim()) {
+        params.append('userId', filterUserId.trim());
+      }
+      if (filterMonth && filterMonth.trim()) {
+        // 驗證月份格式：YYYY-MM
+        const monthMatch = filterMonth.trim().match(/^(\d{4})-(\d{2})$/);
+        if (monthMatch) {
+          const [, year, month] = monthMatch;
+          const yearNum = parseInt(year, 10);
+          const monthNum = parseInt(month, 10);
+          
+          if (yearNum > 0 && monthNum >= 1 && monthNum <= 12) {
+            const startDate = new Date(yearNum, monthNum - 1, 1);
+            const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59, 999);
+            params.append('startDate', startDate.toISOString());
+            params.append('endDate', endDate.toISOString());
+          } else {
+            console.warn('無效的月份格式:', filterMonth);
+          }
+        } else {
+          console.warn('月份格式錯誤，應為 YYYY-MM:', filterMonth);
+        }
       }
       params.append('limit', '100');
 
       const res = await fetch(`/api/admin/expenses?${params}`, {
         headers: getAuthHeaders(),
       });
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      
       const data: ApiResponse<Expense[]> = await res.json();
 
       if (data.success && data.data) {
         setExpenses(data.data);
+      } else {
+        console.error('取得記帳記錄失敗:', data.error || '未知錯誤');
+        setExpenses([]); // 清空列表以避免顯示舊數據
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('取得記帳記錄失敗:', error);
+      setExpenses([]); // 發生錯誤時清空列表
     } finally {
       setExpensesLoading(false);
     }
@@ -256,6 +358,7 @@ export default function AdminPage() {
     fetchConversations();
     fetchStatistics();
     fetchExpenses();
+    fetchUsers();
   }, []);
 
   // 篩選變更時重新載入
@@ -325,7 +428,7 @@ export default function AdminPage() {
           {isLoginMode ? (
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
                   帳號
                 </label>
                 <input
@@ -335,11 +438,12 @@ export default function AdminPage() {
                     setLoginForm({ ...loginForm, username: e.target.value })
                   }
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white"
+                  style={{ color: '#111827' }}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
                   密碼
                 </label>
                 <input
@@ -349,7 +453,8 @@ export default function AdminPage() {
                     setLoginForm({ ...loginForm, password: e.target.value })
                   }
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white"
+                  style={{ color: '#111827' }}
                 />
               </div>
               {authError && (
@@ -365,7 +470,7 @@ export default function AdminPage() {
           ) : (
             <form onSubmit={handleRegister} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
                   帳號（至少3個字元）
                 </label>
                 <input
@@ -376,11 +481,12 @@ export default function AdminPage() {
                   }
                   required
                   minLength={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white"
+                  style={{ color: '#111827' }}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
                   密碼（至少6個字元）
                 </label>
                 <input
@@ -391,11 +497,12 @@ export default function AdminPage() {
                   }
                   required
                   minLength={6}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white"
+                  style={{ color: '#111827' }}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
                   確認密碼
                 </label>
                 <input
@@ -405,7 +512,8 @@ export default function AdminPage() {
                     setRegisterForm({ ...registerForm, confirmPassword: e.target.value })
                   }
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white"
+                  style={{ color: '#111827' }}
                 />
               </div>
               {authError && (
@@ -451,15 +559,42 @@ export default function AdminPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                使用者 ID
+                使用者
               </label>
+              <select
+                value={filterUserId}
+                onChange={(e) => setFilterUserId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+              >
+                <option value="">全部使用者</option>
+                {lineUsers.map((lineUser) => (
+                  <option key={lineUser.id} value={lineUser.lineUserId}>
+                    {lineUser.displayName} ({lineUser.lineUserId})
+                  </option>
+                ))}
+              </select>
               <input
                 type="text"
                 value={filterUserId}
                 onChange={(e) => setFilterUserId(e.target.value)}
-                placeholder="輸入使用者 ID"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="或手動輸入使用者 ID"
+                className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
               />
+              <div className="flex items-center mt-2 gap-2 text-xs text-gray-500">
+                <button
+                  type="button"
+                  onClick={() => setFilterUserId('')}
+                  className="text-blue-600 hover:underline"
+                  disabled={!filterUserId}
+                >
+                  清除選擇
+                </button>
+                {usersLoading ? (
+                  <span>載入使用者列表...</span>
+                ) : (
+                  <span>共 {lineUsers.length} 位使用者</span>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -469,10 +604,72 @@ export default function AdminPage() {
                 type="month"
                 value={filterMonth}
                 onChange={(e) => setFilterMonth(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
               />
+              <div className="flex items-center mt-2 gap-2 text-xs text-gray-500">
+                <button
+                  type="button"
+                  onClick={() => setFilterMonth('')}
+                  className="text-blue-600 hover:underline"
+                  disabled={!filterMonth}
+                >
+                  清除月份
+                </button>
+              </div>
             </div>
           </div>
+        </div>
+
+        {/* 帳號列表 */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">後台帳號列表</h2>
+            {usersLoading ? (
+              <span className="text-sm text-gray-500">載入中...</span>
+            ) : (
+              <span className="text-sm text-gray-500">
+                共 {adminAccounts.length} 筆
+              </span>
+            )}
+          </div>
+          {usersLoading ? (
+            <div className="text-center py-6 text-gray-600">載入中...</div>
+          ) : adminAccounts.length === 0 ? (
+            <div className="text-center py-6 text-gray-600">尚無帳號資料</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      帳號
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      角色
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      建立時間
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {adminAccounts.map((account) => (
+                    <tr key={account.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {account.username}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {account.role === 'admin' ? '管理者' : '觀看者'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatDate(account.createdAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* 統計區域 */}
@@ -534,11 +731,14 @@ export default function AdminPage() {
 
           {expensesLoading ? (
             <div className="text-center py-8">
-              <p className="text-gray-600">載入中...</p>
+              <p className="text-gray-700 font-medium">載入中...</p>
             </div>
           ) : expenses.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-600">尚無記帳記錄</p>
+              <p className="text-gray-700 font-medium">尚無記帳記錄</p>
+              <p className="text-sm text-gray-500 mt-2">
+                請確認是否有記帳資料，或檢查篩選條件
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -605,11 +805,14 @@ export default function AdminPage() {
 
           {loading ? (
             <div className="text-center py-8">
-              <p className="text-gray-600">載入中...</p>
+              <p className="text-gray-700 font-medium">載入中...</p>
             </div>
           ) : conversations.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-600">尚無對話紀錄</p>
+              <p className="text-gray-700 font-medium">尚無對話紀錄</p>
+              <p className="text-sm text-gray-500 mt-2">
+                請確認是否有對話資料，或檢查篩選條件
+              </p>
             </div>
           ) : (
             <div className="space-y-4">

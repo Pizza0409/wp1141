@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
     let expenses;
 
     if (query.userId) {
+      // 查詢特定使用者的記帳記錄
       if (query.startDate && query.endDate) {
         // 日期範圍查詢
         expenses = await expenseRepository.findByUserIdAndDateRange(
@@ -54,11 +55,20 @@ export async function GET(request: NextRequest) {
         );
       }
     } else {
-      // 如果沒有指定 userId，需要實作全體查詢（這裡簡化處理）
-      return NextResponse.json(
-        { success: false, error: '請指定 userId' },
-        { status: 400 }
-      );
+      // 查詢所有使用者的記帳記錄（管理後台功能）
+      if (query.startDate && query.endDate) {
+        expenses = await expenseRepository.findAll(
+          query.limit,
+          query.skip,
+          new Date(query.startDate),
+          new Date(query.endDate)
+        );
+      } else {
+        expenses = await expenseRepository.findAll(
+          query.limit,
+          query.skip
+        );
+      }
     }
 
     return NextResponse.json({

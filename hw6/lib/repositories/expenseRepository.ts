@@ -73,6 +73,31 @@ export class ExpenseRepository {
     const result = await Expense.deleteOne({ _id: id }).exec();
     return result.deletedCount > 0;
   }
+
+  /**
+   * 查詢所有使用者的記帳記錄（用於管理後台）
+   */
+  async findAll(
+    limit: number = 100,
+    skip: number = 0,
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<IExpense[]> {
+    const query: any = {};
+    
+    if (startDate && endDate) {
+      query.timestamp = {
+        $gte: startDate,
+        $lte: endDate,
+      };
+    }
+
+    return Expense.find(query)
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .skip(skip)
+      .exec();
+  }
 }
 
 export default new ExpenseRepository();

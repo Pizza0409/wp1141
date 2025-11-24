@@ -378,6 +378,58 @@ ${context ? `\n【上下文資訊】\n${context}` : ''}`;
       throw error;
     }
   }
+
+  /**
+   * 產生毒舌、嘲諷的警告訊息
+   */
+  async generateSarcasticWarning(
+    currentTotal: number,
+    lastMonthTotal: number,
+    difference: number,
+    percentage: number
+  ): Promise<string> {
+    try {
+      const prompt = `你是一個毒舌、嘲諷的記帳小精靈。使用者的本月花費是 $${currentTotal}，上個月花費是 $${lastMonthTotal}，本月比上個月多花了 $${difference}（增加了 ${percentage.toFixed(1)}%）。
+
+請用毒舌、嘲諷但不過於冒犯的語氣警告使用者，提醒他花費增加的問題。語氣要像朋友間的調侃，但要有警示效果。
+
+範例風格：
+- "這個月比上個月多了 $${difference}，是想繼續當月光族嗎？💸"
+- "哇，這個月比上個月多花了 ${percentage.toFixed(1)}%，錢包在哭泣你知道嗎？😭"
+- "本月花費暴增 $${difference}，看來是時候檢視一下消費習慣了..."
+
+請產生一個簡短（30-50字）的毒舌警告訊息，要幽默但有效果。`;
+
+      const response = await getOpenAIClient().chat.completions.create({
+        model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'system',
+            content:
+              '你是一個毒舌但友善的記帳小精靈。用幽默、嘲諷但不過於冒犯的語氣提醒使用者注意花費。',
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.8, // 提高溫度以增加創意
+        max_tokens: 100,
+      });
+
+      return response.choices[0]?.message?.content || 
+        `這個月比上個月多了 $${difference}，是想繼續當月光族嗎？💸`;
+    } catch (error: any) {
+      // 如果 LLM 失敗，使用預設的毒舌訊息
+      if (percentage > 50) {
+        return `哇！這個月比上個月多花了 $${difference}（增加了 ${percentage.toFixed(1)}%），錢包在哭泣你知道嗎？😭`;
+      } else if (percentage > 20) {
+        return `這個月比上個月多了 $${difference}（增加了 ${percentage.toFixed(1)}%），是想繼續當月光族嗎？💸`;
+      } else {
+        return `本月花費比上個月多了 $${difference}（增加了 ${percentage.toFixed(1)}%），記得控制一下消費習慣喔～`;
+      }
+    }
+  }
 }
 
 export default new OpenAIService();

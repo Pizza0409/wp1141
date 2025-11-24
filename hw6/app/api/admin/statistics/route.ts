@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/mongodb';
 import expenseRepository from '@/lib/repositories/expenseRepository';
 import userRepository from '@/lib/repositories/userRepository';
+import { authenticateRequest, requireAuth } from '@/lib/middleware/auth';
 import logger from '@/lib/services/logger';
 import { z } from 'zod';
 
@@ -13,6 +14,15 @@ const QuerySchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    // 驗證認證
+    const authResult = await authenticateRequest(request);
+    if (!authResult || !requireAuth(authResult.user, 'viewer')) {
+      return NextResponse.json(
+        { success: false, error: '未授權' },
+        { status: 401 }
+      );
+    }
+
     await connectDB();
 
     const searchParams = request.nextUrl.searchParams;

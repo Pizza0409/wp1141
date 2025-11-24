@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Client, WebhookEvent, TextEventMessage } from '@line/bot-sdk';
+import { Client, WebhookEvent, TextEventMessage, QuickReplyItem } from '@line/bot-sdk';
 import crypto from 'crypto';
 import connectDB from '@/lib/db/mongodb';
 import messageParser from '@/lib/services/messageParser';
@@ -54,6 +54,112 @@ function validateSignature(body: string, signature: string): boolean {
 
 // 處理 webhook 事件
 async function handleEvent(event: WebhookEvent): Promise<void> {
+  // 處理 follow 事件（使用者加入好友）
+  if (event.type === 'follow') {
+    const userId = (event.source as any).userId;
+    if (userId) {
+      try {
+        await connectDB();
+        // 設定 Rich Menu（使用預設 Rich Menu，不需要圖片）
+        // 注意：實際使用時需要在 Line Developers Console 建立 Rich Menu 並上傳圖片
+        // 這裡先跳過，因為需要圖片資源
+        logger.info('使用者加入好友', { userId });
+      } catch (error: any) {
+        logger.error('處理 follow 事件失敗', { error: error.message, userId });
+      }
+    }
+    return;
+  }
+
+  // 處理 postback 事件（Rich Menu 按鈕點擊）
+  if (event.type === 'postback') {
+    const userId = (event.source as any).userId;
+    const replyToken = (event as any).replyToken;
+    const data = (event as any).postback.data;
+
+    if (!userId || !replyToken) {
+      return;
+    }
+
+    try {
+      await connectDB();
+
+      // 解析 postback data
+      const params = new URLSearchParams(data);
+      const action = params.get('action');
+
+      if (action === 'help') {
+        // 使用說明
+        const helpText = lineService.getHelpMessage();
+        await lineService.replyTextMessage(replyToken, helpText);
+        return;
+      } else if (action === 'monthly_expense') {
+        // 每月開銷 - 顯示月份選擇器
+        await lineService.replyMonthSelector(replyToken);
+        return;
+      } else if (action === 'current_month_stats') {
+        // 本月統計
+        const now = new Date();
+        const statistics = await expenseService.getMonthlyStatistics(
+          userId,
+          now.getFullYear(),
+          now.getMonth() + 1
+        );
+        await lineService.replyStatisticsWithChart(replyToken, statistics);
+        return;
+      } else if (action === 'today_expenses') {
+        // 今日記錄
+        const expenses = await expenseService.getTodayExpenses(userId);
+        await lineService.replyExpenseList(replyToken, expenses);
+        return;
+      } else if (action === 'select_year') {
+        // 選擇年份後，顯示月份選擇
+        const year = parseInt(params.get('year') || '0', 10);
+        if (year > 0) {
+          const monthItems: QuickReplyItem[] = [];
+          for (let month = 1; month <= 12; month++) {
+            monthItems.push({
+              type: 'action',
+              action: {
+                type: 'postback',
+                label: `${month}月`,
+                data: `action=select_month&year=${year}&month=${month}`,
+              },
+            });
+          }
+          await lineService.replyWithQuickReply(
+            replyToken,
+            `請選擇 ${year} 年的月份：`,
+            monthItems
+          );
+        }
+        return;
+      } else if (action === 'select_month') {
+        // 選擇月份後，顯示該月統計
+        const year = parseInt(params.get('year') || '0', 10);
+        const month = parseInt(params.get('month') || '0', 10);
+        if (year > 0 && month > 0) {
+          const statistics = await expenseService.getMonthlyStatistics(
+            userId,
+            year,
+            month
+          );
+          await lineService.replyStatisticsWithChart(replyToken, statistics);
+        }
+        return;
+      }
+    } catch (error: any) {
+      logger.error('處理 postback 事件失敗', { error: error.message, userId, data });
+      try {
+        await lineService.replyError(replyToken, '處理請求時發生錯誤');
+      } catch (replyError: any) {
+        logger.error('回覆錯誤訊息失敗', { error: replyError.message });
+      }
+    }
+    return;
+  }
+
+  // 處理文字訊息
   if (event.type !== 'message' || event.message.type !== 'text') {
     return;
   }
@@ -93,16 +199,35 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
 
     // 處理訊息：使用新的統一解析方法
     try {
-      const categories = await expenseService.getUserCategories(userId);
+      // 效能優化：並行取得類別和對話歷史
+      const [categories, latestConversation] = await Promise.all([
+        expenseService.getUserCategories(userId),
+        conversationRepository.findLatestByUserId(userId),
+      ]);
       
-      // 取得對話歷史作為上下文
-      const latestConversation = await conversationRepository.findLatestByUserId(userId);
+      // 取得對話歷史作為上下文（只取最近 5 條以減少 token 使用）
       const conversationHistory = latestConversation?.messages
-        .slice(-10) // 只取最近 10 條訊息
+        .slice(-5) // 減少到 5 條以優化效能
         .map(msg => ({
           role: msg.role,
           content: msg.content,
         })) || [];
+      
+      // 快速響應：先回覆確認訊息（對於簡單查詢）
+      const quickResponses: Record<string, string> = {
+        '這個月花多少': '正在查詢本月統計...',
+        '上個月花多少': '正在查詢上月統計...',
+        '這半年花多少': '正在查詢過去6個月統計...',
+        '今年花多少': '正在查詢今年統計...',
+      };
+      
+      const quickReply = quickResponses[userMessage.trim()];
+      if (quickReply) {
+        // 非同步發送確認訊息（不等待）
+        lineService.replyTextMessage(replyToken, quickReply).catch((err: any) => {
+          logger.error('發送快速確認訊息失敗', { error: err.message });
+        });
+      }
       
       // 使用新的統一解析方法
       const parsed = await openaiService.parseMessage(
@@ -177,16 +302,48 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
         } else {
           // 預設：查詢本月統計
           const now = new Date();
-          statistics = await expenseService.getMonthlyStatistics(
-            userId,
-            now.getFullYear(),
-            now.getMonth() + 1
-          );
+          
+          // 效能優化：並行查詢本月統計和月份比較
+          const [monthStats, comparison] = await Promise.all([
+            expenseService.getMonthlyStatistics(
+              userId,
+              now.getFullYear(),
+              now.getMonth() + 1
+            ),
+            expenseService.compareMonthlyExpenses(userId).catch(() => null),
+          ]);
+          
+          statistics = monthStats;
           replyText = `本月統計：總計 $${statistics.total}`;
+
+          // 毒舌警告：比較本月與上月花費
+          if (comparison && comparison.isIncreased && comparison.percentage > 10) {
+            try {
+              // 非同步產生警告訊息（不阻塞主要回應）
+              openaiService.generateSarcasticWarning(
+                comparison.currentMonth.total,
+                comparison.lastMonth.total,
+                comparison.difference,
+                comparison.percentage
+              ).then((warningMessage) => {
+                // 使用 pushMessage 發送警告（因為 replyToken 已使用）
+                lineService.pushMessage(userId, {
+                  type: 'text',
+                  text: `⚠️ ${warningMessage}`,
+                }).catch((err: any) => {
+                  logger.error('發送毒舌警告失敗', { error: err.message });
+                });
+              }).catch((err: any) => {
+                logger.warn('產生毒舌警告失敗', { error: err.message });
+              });
+            } catch (error: any) {
+              logger.warn('比較月份花費失敗，跳過毒舌警告', { error: error.message });
+            }
+          }
         }
 
-        // 回覆統計結果
-        await lineService.replyStatistics(replyToken, statistics);
+        // 回覆統計結果（使用帶圓餅圖的版本）
+        await lineService.replyStatisticsWithChart(replyToken, statistics);
         
         await conversationRepository.addMessage(userId, {
           role: 'assistant',
@@ -376,4 +533,5 @@ export async function OPTIONS(): Promise<Response> {
     },
   });
 }
+
 

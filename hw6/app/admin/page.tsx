@@ -3,6 +3,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { ApiResponse } from '@/types';
 
+interface User {
+  username: string;
+  role: 'admin' | 'viewer';
+}
+
 interface Conversation {
   _id: string;
   userId: string;
@@ -22,22 +27,139 @@ interface Statistics {
   userCount?: number;
 }
 
+interface Expense {
+  _id: string;
+  userId: string;
+  category: string;
+  detail: string;
+  amount: number;
+  timestamp: Date;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export default function AdminPage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoginMode, setIsLoginMode] = useState(true);
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [registerForm, setRegisterForm] = useState({ username: '', password: '', confirmPassword: '' });
+  const [authError, setAuthError] = useState('');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [statistics, setStatistics] = useState<Statistics | null>(null);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expensesLoading, setExpensesLoading] = useState(false);
   const [filterUserId, setFilterUserId] = useState('');
   const [filterMonth, setFilterMonth] = useState('');
   const eventSourceRef = useRef<EventSource | null>(null);
 
+  // 檢查是否已登入
+  useEffect(() => {
+    const token = localStorage.getItem('admin_token');
+    const userStr = localStorage.getItem('admin_user');
+    if (token && userStr) {
+      try {
+        const userData = JSON.parse(userStr);
+        setUser(userData);
+      } catch (error) {
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('admin_user');
+      }
+    }
+  }, []);
+
+  // 登入
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+
+    try {
+      const res = await fetch('/api/admin/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loginForm),
+      });
+
+      const data: ApiResponse<{ token: string; user: User }> = await res.json();
+
+      if (data.success && data.data) {
+        localStorage.setItem('admin_token', data.data.token);
+        localStorage.setItem('admin_user', JSON.stringify(data.data.user));
+        setUser(data.data.user);
+        setLoginForm({ username: '', password: '' });
+      } else {
+        setAuthError(data.error || '登入失敗');
+      }
+    } catch (error) {
+      setAuthError('登入時發生錯誤');
+    }
+  };
+
+  // 註冊
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+
+    if (registerForm.password !== registerForm.confirmPassword) {
+      setAuthError('密碼不一致');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/admin/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: registerForm.username,
+          password: registerForm.password,
+        }),
+      });
+
+      const data: ApiResponse<{ username: string; role: string }> = await res.json();
+
+      if (data.success) {
+        setAuthError('');
+        setIsLoginMode(true);
+        setRegisterForm({ username: '', password: '', confirmPassword: '' });
+        alert('註冊成功！請登入');
+      } else {
+        setAuthError(data.error || '註冊失敗');
+      }
+    } catch (error) {
+      setAuthError('註冊時發生錯誤');
+    }
+  };
+
+  // 登出
+  const handleLogout = () => {
+    localStorage.removeItem('admin_token');
+    localStorage.removeItem('admin_user');
+    setUser(null);
+  };
+
+  // 取得認證標頭
+  const getAuthHeaders = (): HeadersInit | undefined => {
+    const token = localStorage.getItem('admin_token');
+    if (!token) {
+      return undefined;
+    }
+    return {
+      Authorization: `Bearer ${token}`,
+    };
+  };
+
   // 取得對話列表
   const fetchConversations = async () => {
+    if (!user) return;
+    
     try {
       const params = new URLSearchParams();
       if (filterUserId) params.append('userId', filterUserId);
       params.append('limit', '50');
 
-      const res = await fetch(`/api/admin/conversations?${params}`);
+      const res = await fetch(`/api/admin/conversations?${params}`, {
+        headers: getAuthHeaders(),
+      });
       const data: ApiResponse<Conversation[]> = await res.json();
 
       if (data.success && data.data) {
@@ -52,6 +174,8 @@ export default function AdminPage() {
 
   // 取得統計資料
   const fetchStatistics = async () => {
+    if (!user) return;
+    
     try {
       const params = new URLSearchParams();
       if (filterUserId) params.append('userId', filterUserId);
@@ -61,7 +185,9 @@ export default function AdminPage() {
         params.append('month', month);
       }
 
-      const res = await fetch(`/api/admin/statistics?${params}`);
+      const res = await fetch(`/api/admin/statistics?${params}`, {
+        headers: getAuthHeaders(),
+      });
       const data: ApiResponse<Statistics> = await res.json();
 
       if (data.success && data.data) {
@@ -69,6 +195,38 @@ export default function AdminPage() {
       }
     } catch (error) {
       console.error('取得統計資料失敗:', error);
+    }
+  };
+
+  // 取得記帳記錄
+  const fetchExpenses = async () => {
+    if (!user) return;
+    
+    setExpensesLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (filterUserId) params.append('userId', filterUserId);
+      if (filterMonth) {
+        const [year, month] = filterMonth.split('-');
+        const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+        const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59, 999);
+        params.append('startDate', startDate.toISOString());
+        params.append('endDate', endDate.toISOString());
+      }
+      params.append('limit', '100');
+
+      const res = await fetch(`/api/admin/expenses?${params}`, {
+        headers: getAuthHeaders(),
+      });
+      const data: ApiResponse<Expense[]> = await res.json();
+
+      if (data.success && data.data) {
+        setExpenses(data.data);
+      }
+    } catch (error) {
+      console.error('取得記帳記錄失敗:', error);
+    } finally {
+      setExpensesLoading(false);
     }
   };
 
@@ -97,12 +255,14 @@ export default function AdminPage() {
   useEffect(() => {
     fetchConversations();
     fetchStatistics();
+    fetchExpenses();
   }, []);
 
   // 篩選變更時重新載入
   useEffect(() => {
     fetchConversations();
     fetchStatistics();
+    fetchExpenses();
   }, [filterUserId, filterMonth]);
 
   // 格式化日期
@@ -124,10 +284,166 @@ export default function AdminPage() {
       }));
   };
 
+  // 如果未登入，顯示登入/註冊頁面
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-8">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">
+            記帳機器人管理後台
+          </h1>
+
+          <div className="flex mb-6 border-b">
+            <button
+              onClick={() => {
+                setIsLoginMode(true);
+                setAuthError('');
+              }}
+              className={`flex-1 py-2 text-center ${
+                isLoginMode
+                  ? 'border-b-2 border-blue-600 text-blue-600 font-semibold'
+                  : 'text-gray-600'
+              }`}
+            >
+              登入
+            </button>
+            <button
+              onClick={() => {
+                setIsLoginMode(false);
+                setAuthError('');
+              }}
+              className={`flex-1 py-2 text-center ${
+                !isLoginMode
+                  ? 'border-b-2 border-blue-600 text-blue-600 font-semibold'
+                  : 'text-gray-600'
+              }`}
+            >
+              註冊（觀看者）
+            </button>
+          </div>
+
+          {isLoginMode ? (
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  帳號
+                </label>
+                <input
+                  type="text"
+                  value={loginForm.username}
+                  onChange={(e) =>
+                    setLoginForm({ ...loginForm, username: e.target.value })
+                  }
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  密碼
+                </label>
+                <input
+                  type="password"
+                  value={loginForm.password}
+                  onChange={(e) =>
+                    setLoginForm({ ...loginForm, password: e.target.value })
+                  }
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              {authError && (
+                <div className="text-red-600 text-sm">{authError}</div>
+              )}
+              <button
+                type="submit"
+                className="w-full py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+              >
+                登入
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleRegister} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  帳號（至少3個字元）
+                </label>
+                <input
+                  type="text"
+                  value={registerForm.username}
+                  onChange={(e) =>
+                    setRegisterForm({ ...registerForm, username: e.target.value })
+                  }
+                  required
+                  minLength={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  密碼（至少6個字元）
+                </label>
+                <input
+                  type="password"
+                  value={registerForm.password}
+                  onChange={(e) =>
+                    setRegisterForm({ ...registerForm, password: e.target.value })
+                  }
+                  required
+                  minLength={6}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  確認密碼
+                </label>
+                <input
+                  type="password"
+                  value={registerForm.confirmPassword}
+                  onChange={(e) =>
+                    setRegisterForm({ ...registerForm, confirmPassword: e.target.value })
+                  }
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              {authError && (
+                <div className="text-red-600 text-sm">{authError}</div>
+              )}
+              <button
+                type="submit"
+                className="w-full py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition"
+              >
+                註冊（觀看者）
+              </button>
+              <p className="text-xs text-gray-500 text-center mt-2">
+                註冊後預設為觀看者，只有管理者可以建立管理者帳號
+              </p>
+            </form>
+          )}
+        </div>
+      </div>
+  );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">記帳機器人管理後台</h1>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">記帳機器人管理後台</h1>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-600">
+              {user.username} ({user.role === 'admin' ? '管理者' : '觀看者'})
+            </span>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition"
+            >
+              登出
+            </button>
+          </div>
+        </div>
 
         {/* 篩選區域 */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
@@ -202,6 +518,78 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* 記帳記錄列表 */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">記帳記錄</h2>
+            <button
+              onClick={fetchExpenses}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition"
+              disabled={expensesLoading}
+            >
+              {expensesLoading ? '載入中...' : '重新整理'}
+            </button>
+          </div>
+
+          {expensesLoading ? (
+            <div className="text-center py-8">
+              <p className="text-gray-600">載入中...</p>
+            </div>
+          ) : expenses.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-600">尚無記帳記錄</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      時間
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      使用者 ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      類別
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      項目
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      金額
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {expenses.map((expense) => (
+                    <tr key={expense._id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatDate(expense.timestamp.toString())}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {expense.userId.substring(0, 20)}...
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {expense.category}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {expense.detail}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
+                        ${expense.amount.toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="mt-4 text-sm text-gray-600">
+                共 {expenses.length} 筆記錄
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* 對話列表 */}
         <div className="bg-white rounded-lg shadow p-6">

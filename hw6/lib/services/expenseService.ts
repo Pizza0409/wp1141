@@ -215,6 +215,44 @@ export class ExpenseService {
   }
 
   /**
+   * 比較本月與上月的花費差異
+   */
+  async compareMonthlyExpenses(userId: string): Promise<{
+    currentMonth: MonthlyStatistics;
+    lastMonth: MonthlyStatistics;
+    difference: number;
+    percentage: number;
+    isIncreased: boolean;
+  }> {
+    try {
+      const now = new Date();
+      const currentMonth = await this.getMonthlyStatistics(
+        userId,
+        now.getFullYear(),
+        now.getMonth() + 1
+      );
+      const lastMonth = await this.getLastMonthStatistics(userId);
+
+      const difference = currentMonth.total - lastMonth.total;
+      const percentage = lastMonth.total > 0
+        ? (difference / lastMonth.total) * 100
+        : (currentMonth.total > 0 ? 100 : 0);
+      const isIncreased = difference > 0;
+
+      return {
+        currentMonth,
+        lastMonth,
+        difference: Math.abs(difference),
+        percentage: Math.abs(percentage),
+        isIncreased,
+      };
+    } catch (error: any) {
+      logger.error('比較月份花費失敗', { error: error.message, userId });
+      throw error;
+    }
+  }
+
+  /**
    * 新增自訂項目類別
    */
   async addCustomCategory(

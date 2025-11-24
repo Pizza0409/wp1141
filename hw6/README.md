@@ -1,6 +1,9 @@
 # Line Bot AI 記帳系統
 
 這是一個整合 Line Messaging API 的智慧記帳機器人系統，使用 Next.js、TypeScript、MongoDB 和 OpenAI 開發。
+LineID: @601plank
+<a href="https://lin.ee/80pqE1f"><img src="https://scdn.line-apps.com/n/line_add_friends/btn/zh-Hant.png" alt="加入好友" height="36" border="0"></a>
+後台管理：https://my-chat-bot-blush.vercel.app/
 
 ## 功能特色
 

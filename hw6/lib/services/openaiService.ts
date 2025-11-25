@@ -3,7 +3,7 @@ import { ParsedExpense, ParsedMessage } from '@/types';
 import { z } from 'zod';
 import logger from './logger';
 
-// 延遲初始化 OpenAI 客戶端
+// 1. 延遲初始化 OpenAI 客戶端 (Singleton Pattern)
 let openai: OpenAI | null = null;
 
 function getOpenAIClient(): OpenAI {
@@ -12,385 +12,288 @@ function getOpenAIClient(): OpenAI {
     if (!apiKey) {
       throw new Error('OPENAI_API_KEY 環境變數未設定');
     }
-    openai = new OpenAI({
-      apiKey,
-    });
+    openai = new OpenAI({ apiKey });
   }
   return openai;
 }
 
-// 定義解析結果的 Zod schema（舊格式，用於向後兼容）
+// 2. Zod Schemas 定義
+
+// 舊格式 (向後兼容用)
 const ParsedExpenseSchema = z.object({
   category: z.string(),
   detail: z.string(),
   amount: z.number().positive(),
 });
 
-// 定義新的解析結果 Zod schema
+// 新格式 (包含意圖識別，增強容錯性)
 const ParsedMessageSchema = z.object({
   intent: z.enum(['expense', 'income', 'chat', 'query']),
-  item: z.string(),
-  amount: z.number().min(0),
-  category: z.string(),
-  reply: z.string(),
+  // 使用 default('') 防止 AI 回傳 null 導致 crash
+  item: z.string().nullable().transform(val => val || '').default(''),
+  // 允許 0，但通常記帳不應為 0
+  amount: z.number().min(0).default(0),
+  category: z.string().default('其他'),
+  reply: z.string().default(''),
 });
 
-// 預設項目類別
+// 預設項目類別 (加入 '薪資', '投資' 以支援收入)
 const DEFAULT_CATEGORIES = [
-  '餐點',
-  '運動',
-  '飲品',
-  '生活用品',
-  '3C',
-  '美妝保養',
-  '網路訂閱',
-  '交通',
-  '娛樂',
-  '其他',
+  '餐點', '運動', '飲品', '生活用品', '3C',
+  '美妝保養', '網路訂閱', '交通', '娛樂', '醫療',
+  '薪資', '投資', '其他',
+];
+
+const DEFAULT_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+const FEW_SHOT_EXAMPLES: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+  // 範例 1: 一般支出
+  { role: 'user', content: '午餐 120' },
+  { role: 'assistant', content: '{"intent":"expense","item":"午餐","amount":120,"category":"餐點","reply":"✅ 記帳完成：餐點 - 午餐 $120"}' },
+  // 範例 2: 飲品（易誤分類）
+  { role: 'user', content: '買了一杯星巴克 160' },
+  { role: 'assistant', content: '{"intent":"expense","item":"星巴克","amount":160,"category":"飲品","reply":"☕ 已記錄：飲品 - 星巴克 $160"}' },
+  // 範例 3: 日用品
+  { role: 'user', content: '買衛生紙 90' },
+  { role: 'assistant', content: '{"intent":"expense","item":"衛生紙","amount":90,"category":"生活用品","reply":"🧻 記下來了：生活用品 - 衛生紙 $90"}' },
+  // 範例 4: 收入
+  { role: 'user', content: '發薪水了 50000' },
+  { role: 'assistant', content: '{"intent":"income","item":"薪水","amount":50000,"category":"薪資","reply":"💰 已記錄收入：薪資 $50000"}' },
+  // 範例 5: 查詢
+  { role: 'user', content: '這個月花多少' },
+  { role: 'assistant', content: '{"intent":"query","item":"","amount":0,"category":"其他","reply":"正在為你查詢本月統計..."}' },
+  // 範例 6: 閒聊
+  { role: 'user', content: '你好嗎' },
+  { role: 'assistant', content: '{"intent":"chat","item":"","amount":0,"category":"其他","reply":"嗨嗨！需要記帳或查詢統計嗎？"}' },
 ];
 
 export class OpenAIService {
-  private createPrompt(
-    userMessage: string,
-    customCategories?: string[],
-    conversationHistory?: Array<{ role: string; content: string }>
-  ): string {
-    const allCategories = [...DEFAULT_CATEGORIES, ...(customCategories || [])];
-    const categoriesList = allCategories.join('、');
+  
+  /**
+   * 私有輔助方法：呼叫 OpenAI 並強制解析為 JSON
+   * 這可以減少重複代碼，並統一處理 JSON 解析錯誤
+   */
+  private async callOpenAIJSON<T>(
+    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+    schema: z.ZodType<T>,
+    schemaName: string = 'Result'
+  ): Promise<T> {
+    try {
+      const client = getOpenAIClient();
+      const response = await client.chat.completions.create({
+        model: DEFAULT_MODEL,
+        messages,
+        temperature: 0.2, // 降低溫度以確保 JSON 格式穩定
+        response_format: { type: 'json_object' },
+      });
 
-    // 加入當前時間 (台灣時間)
-    const now = new Date();
-    const currentDate = now.toLocaleString('zh-TW', { 
-      timeZone: 'Asia/Taipei',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      weekday: 'long'
-    });
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1; // 月份從 0 開始，所以要 +1
+      const content = response.choices[0]?.message?.content;
+      if (!content) throw new Error('OpenAI 回應內容為空');
 
-    let historyContext = '';
-    if (conversationHistory && conversationHistory.length > 0) {
-      // 只取最近 5 條對話作為上下文
-      const recentHistory = conversationHistory.slice(-5);
-      historyContext = '\n\n對話歷史（供參考）：\n' +
-        recentHistory.map(msg => `${msg.role === 'user' ? '使用者' : '助手'}: ${msg.content}`).join('\n');
+      // 嘗試解析 JSON (包含容錯處理)
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(content);
+      } catch (e) {
+        // 補救措施：如果 AI 回傳了 markdown code block，嘗試提取內容
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          parsed = JSON.parse(jsonMatch[0]);
+        } else {
+          logger.error(`[OpenAI] JSON 解析失敗: ${content}`);
+          throw new Error('無法解析 JSON 回應');
+        }
+      }
+
+      // 使用 Zod 進行型別驗證與轉換
+      return schema.parse(parsed);
+
+    } catch (error: any) {
+      this.handleError(error, schemaName);
+      throw error; // 讓上層決定如何處理 (例如降級回覆)
     }
-
-    return `你是一個專業的「記帳小精靈」。你的核心任務是從使用者的自然語言中，提取出消費資訊，並輸出為 JSON 格式。
-
-# 當前時間資訊
-
-- 當前時間（台灣時間）：${currentDate}
-- 當前年份：${currentYear}
-- 當前月份：${currentMonth}
-
-當使用者提到「今天」、「這個月」、「上個月」等時間相關詞彙時，請參考上述時間資訊。
-
-# 你的角色設定
-
-1. 任務：分析消費內容。
-
-# 輸出規則 (非常重要)
-
-無論使用者說什麼，你最終**只能**回傳一個 JSON 物件，不要包含任何 markdown (\`\`\`json) 標記或其他閒聊文字。
-
-JSON 格式如下：
-
-{
-  "intent": "expense" (支出記帳) 或 "income" (收入記帳) 或 "chat" (閒聊/無法判斷) 或 "query" (查詢統計),
-  "item": "商品名稱 (字串)",
-  "amount": 金額 (數字，若未提及則為 0),
-  "category": "推測類別 (從以下類別選擇：${categoriesList}，注意：「食」相關內容統一使用「餐點」類別)",
-  "reply": "給用戶的簡短回應 (字串，20-50字)"
-}
-
-# 處理邏輯
-
-1. 如果使用者說「午餐 100」，意圖是 "expense"。
-   - intent: "expense"
-   - item: "午餐"
-   - amount: 100
-   - category: 從可用類別中選擇最合適的（如：餐點）
-   - reply: "✅ 已記錄：餐點 - 午餐 $100"
-
-2. 如果使用者說「你好」，意圖是 "chat"，請在 reply 中引導他記帳。
-   - intent: "chat"
-   - item: ""
-   - amount: 0
-   - category: "其他"
-   - reply: "👋 你好！我是記帳小精靈，可以幫你記錄支出。例如：午餐 50"
-
-3. 如果使用者說「這個月花多少」或「這個月花費了多少」，意圖是 "query"。
-   - intent: "query"
-   - item: ""
-   - amount: 0
-   - category: "其他"
-   - reply: "正在為您查詢 ${currentYear}年${currentMonth}月 的統計..."
-
-4. 如果使用者說「上個月花多少」或「上個月花費了多少」，意圖是 "query"。
-   - intent: "query"
-   - item: ""
-   - amount: 0
-   - category: "其他"
-   - reply: "正在為您查詢上個月的統計..."
-
-5. 如果使用者說「這半年花多少」或「這半年花費了多少」，意圖是 "query"。
-   - intent: "query"
-   - item: ""
-   - amount: 0
-   - category: "其他"
-   - reply: "正在為您查詢過去6個月的統計..."
-
-6. 如果使用者說「今年花多少」或「這年花費了多少」，意圖是 "query"。
-   - intent: "query"
-   - item: ""
-   - amount: 0
-   - category: "其他"
-   - reply: "正在為您查詢 ${currentYear}年 的統計..."
-
-7. 如果使用者說「今天午餐 100」，意圖是 "expense"。
-   - intent: "expense"
-   - item: "午餐"
-   - amount: 100
-   - category: "餐點"
-   - reply: "✅ 已記錄：餐點 - 午餐 $100（${currentDate}）"
-
-8. 如果使用者說「收入 5000」或「薪水 30000」或「收到 1000」，意圖是 "income"。
-   - intent: "income"
-   - item: "薪水" 或 "收入" 等
-   - amount: 5000
-   - category: "薪資" 或 "其他收入" 等
-   - reply: "💰 已記錄收入：薪資 - 薪水 $5000"
-
-# 類別對應規則
-
-- 食：統一使用「餐點」類別（不要使用「食」作為類別名稱）
-- 衣：美妝保養
-- 住：生活用品
-- 行：交通
-- 育：運動、網路訂閱
-- 樂：娛樂
-- 其他：無法歸類的項目
-
-重要：當使用者提到「食」相關的內容時，請統一使用「餐點」類別，不要使用「食」作為類別。
-
-使用者訊息：${userMessage}${historyContext}
-
-請嚴格按照 JSON 格式回覆，不要包含任何其他文字。`;
   }
 
   /**
-   * 解析使用者訊息（新格式，包含意圖識別）
+   * 私有輔助方法：呼叫 OpenAI 產生純文字
+   */
+  private async callOpenAIText(
+    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+    temperature: number = 0.7,
+    maxTokens: number = 200
+  ): Promise<string> {
+    try {
+      const client = getOpenAIClient();
+      const response = await client.chat.completions.create({
+        model: DEFAULT_MODEL,
+        messages,
+        temperature,
+        max_tokens: maxTokens,
+      });
+      return response.choices[0]?.message?.content || '';
+    } catch (error: any) {
+      this.handleError(error, 'TextGeneration');
+      return '抱歉，我暫時無法產生回應。';
+    }
+  }
+
+  /**
+   * 統一錯誤處理
+   */
+  private handleError(error: any, context: string) {
+    if (error?.status === 429) {
+      logger.warn(`[OpenAI] ${context} - Rate Limit Exceeded`);
+      throw new Error('API 配額已用完或達到速率限制，請稍後再試');
+    }
+    if (error?.code === 'insufficient_quota') {
+      logger.error(`[OpenAI] ${context} - Insufficient Quota`);
+      throw new Error('API 配額不足');
+    }
+    logger.error(`[OpenAI] ${context} - Error: ${error.message}`);
+  }
+
+  /**
+   * 建構系統提示詞 (System Prompt)
+   */
+  private createSystemPrompt(
+    customCategories?: string[],
+    conversationHistory?: Array<{ role: string; content: string }>
+  ): string {
+    const allCategories = Array.from(new Set([...DEFAULT_CATEGORIES, ...(customCategories || [])]));
+    const categoriesList = allCategories.join('、');
+
+    // 時間資訊 (精確到分，並包含星期)
+    const now = new Date();
+    const currentDate = now.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+
+    // 對話歷史摘要
+    let historyContext = '';
+    if (conversationHistory && conversationHistory.length > 0) {
+      const recentHistory = conversationHistory.slice(-5);
+      historyContext = '\n\n# 對話歷史參考\n' +
+        recentHistory.map(msg => `${msg.role === 'user' ? 'User' : 'Bot'}: ${msg.content}`).join('\n');
+    }
+
+    return `你是一個專業的「記帳小精靈」。你的核心任務是從使用者的自然語言中，提取出消費或收入資訊，並嚴格輸出為 JSON 格式。
+
+# 當前時間資訊
+- 時間：${currentDate} (台灣時間)
+- 年份：${currentYear} / 月份：${currentMonth}
+- 當使用者提到「今天」、「昨天」、「這個月」時，請基於此時間推算。
+
+# 輸出規則 (Strict JSON)
+無論使用者說什麼，你**只能**回傳一個 JSON 物件。**嚴禁**包含 Markdown 標記 (如 \`\`\`json) 或其他閒聊文字。
+
+JSON 格式：
+{
+  "intent": "expense" (支出) | "income" (收入) | "query" (查詢) | "chat" (閒聊/無法判斷),
+  "item": "項目名稱 (字串)",
+  "amount": 金額 (數字，若無則為 0),
+  "category": "推測類別 (從下方清單選擇)",
+  "reply": "給用戶的簡短回應 (字串，溫馨/幽默風格，30字內)"
+}
+
+# 類別清單
+${categoriesList}
+
+# 關鍵規則
+1. **類別對應**：
+   - 「食」相關：正餐(午餐/晚餐/便當) -> **「餐點」**。
+   - 飲料/咖啡/茶 -> **「飲品」** (請與餐點區分)。
+   - 薪水/轉帳收入 -> **「薪資」** 或 **「其他」** (intent 為 income)。
+2. **意圖判斷**：
+   - 包含「金額」與「項目」-> 通常是 expense 或 income。
+   - 「花多少」、「統計」 -> query。
+   - 打招呼或無意義文字 -> chat。
+
+${historyContext}`;
+  }
+
+  // --- 公開方法 ---
+
+  /**
+   * 解析使用者訊息 (核心功能)
    */
   async parseMessage(
     userMessage: string,
     customCategories?: string[],
     conversationHistory?: Array<{ role: string; content: string }>
   ): Promise<ParsedMessage> {
+    
+    const systemPrompt = this.createSystemPrompt(customCategories, conversationHistory);
+
+    // 使用 Few-Shot Prompting 提高準確度
+    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      { role: 'system', content: systemPrompt },
+      ...FEW_SHOT_EXAMPLES,
+      { role: 'user', content: userMessage },
+    ];
+
     try {
-      const prompt = this.createPrompt(userMessage, customCategories, conversationHistory);
-
-      const response = await getOpenAIClient().chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
-        messages: [
-          {
-            role: 'system',
-            content:
-              '你是一個專業的記帳小精靈。你必須：\n' +
-              '1. 嚴格按照 JSON 格式回覆，只回傳 JSON 物件，不要包含任何 markdown 標記\n' +
-              '2. 準確識別使用者意圖（expense/chat/query）\n' +
-              '3. 準確提取類別、項目名稱和金額\n' +
-              '4. 提供簡短友善的回應（20-50字）',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        temperature: 0.2, // 降低溫度以提高準確性
-        response_format: { type: 'json_object' },
-      });
-
-      const content = response.choices[0]?.message?.content;
-      if (!content) {
-        throw new Error('OpenAI 回應為空');
-      }
-
-      // 解析 JSON
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(content);
-      } catch (e) {
-        // 嘗試提取 JSON（如果回應包含其他文字）
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          parsed = JSON.parse(jsonMatch[0]);
-        } else {
-          throw new Error('無法解析 JSON 回應');
-        }
-      }
-
-      // 使用 Zod 驗證
-      const validated = ParsedMessageSchema.parse(parsed);
-
-      return validated;
+      return await this.callOpenAIJSON(messages, ParsedMessageSchema, 'ParseMessage');
     } catch (error: any) {
-      // 處理 OpenAI API 錯誤
-      if (error?.status === 429) {
-        throw new Error(
-          'API 配額已用完或達到速率限制，請稍後再試'
-        );
-      }
-
-      if (error?.code === 'insufficient_quota') {
-        throw new Error('API 配額不足');
-      }
-
-      // 重新拋出其他錯誤
-      throw error;
+      logger.warn('[OpenAI] ParseMessage 失敗，使用 fallback 解析', { error: error.message });
+      return this.fallbackParsedMessage(userMessage);
     }
   }
 
+  /**
+   * 舊方法兼容：只解析支出
+   * (建議在其他程式碼中逐漸改用 parseMessage)
+   */
   async parseExpenseMessage(
     userMessage: string,
     customCategories?: string[],
     conversationHistory?: Array<{ role: string; content: string }>
   ): Promise<ParsedExpense> {
-    try {
-      const prompt = this.createPrompt(userMessage, customCategories, conversationHistory);
+    const result = await this.parseMessage(userMessage, customCategories, conversationHistory);
 
-      const response = await getOpenAIClient().chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
-        messages: [
-          {
-            role: 'system',
-            content:
-              '你是一個專業的記帳助手，專門從使用者訊息中提取記帳資訊。你必須：\n' +
-              '1. 嚴格按照 JSON 格式回覆\n' +
-              '2. 準確識別類別和金額\n' +
-              '3. 如果訊息不是記帳相關，將 amount 設為 0\n' +
-              '4. 細節描述要具體，不要重複類別名稱',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        temperature: 0.2, // 降低溫度以提高準確性
-        response_format: { type: 'json_object' },
-      });
-
-      const content = response.choices[0]?.message?.content;
-      if (!content) {
-        throw new Error('OpenAI 回應為空');
-      }
-
-      // 解析 JSON
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(content);
-      } catch (e) {
-        // 嘗試提取 JSON（如果回應包含其他文字）
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          parsed = JSON.parse(jsonMatch[0]);
-        } else {
-          throw new Error('無法解析 JSON 回應');
-        }
-      }
-
-      // 使用 Zod 驗證
-      const validated = ParsedExpenseSchema.parse(parsed);
-
-      if (validated.amount === 0) {
-        throw new Error('無法從訊息中提取金額');
-      }
-
-      return validated;
-    } catch (error: any) {
-      // 處理 OpenAI API 錯誤
-      if (error?.status === 429) {
-        throw new Error(
-          'API 配額已用完或達到速率限制，請稍後再試'
-        );
-      }
-
-      if (error?.code === 'insufficient_quota') {
-        throw new Error('API 配額不足');
-      }
-
-      // 重新拋出其他錯誤
-      throw error;
+    if (result.intent !== 'expense' || result.amount <= 0) {
+      throw new Error('無法從訊息中提取有效的支出金額');
     }
+
+    return {
+      category: result.category,
+      detail: result.item || '未指定項目',
+      amount: result.amount,
+    };
   }
 
+  /**
+   * 生成一般回應
+   */
   async generateResponse(
     userMessage: string,
     context?: string,
     conversationHistory?: Array<{ role: string; content: string }>
   ): Promise<string> {
-    try {
-      const systemPrompt = `你是一個友善且專業的記帳機器人助手。你的主要功能包括：
-
-【核心功能】
-1. 記錄支出：幫助使用者記錄日常開支（格式：項目 金額，如「午餐 50」）
-2. 查詢統計：回答關於支出統計的問題（如「這個月花了多少」）
-3. 管理記帳項目：協助新增或管理記帳類別
-4. 提供記帳建議：給予合理的記帳建議和提醒
-
-【回答規則】
-- 用簡潔、友善、親切的語氣回覆
-- 回答要具體且實用
-- 如果使用者詢問記帳相關問題，要提供有用的資訊
-- 如果使用者想記錄支出但格式不清楚，要友善地引導正確格式
-- 保持專業但不過於正式
-- 回答長度控制在 100 字以內
-
-${context ? `\n【上下文資訊】\n${context}` : ''}`;
-
-      // 構建對話歷史
-      const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-        { role: 'system', content: systemPrompt },
-      ];
-
-      // 添加對話歷史（最近 6 條）
-      if (conversationHistory && conversationHistory.length > 0) {
-        const recentHistory = conversationHistory.slice(-6);
-        for (const msg of recentHistory) {
-          if (msg.role === 'user' || msg.role === 'assistant') {
-            messages.push({
-              role: msg.role as 'user' | 'assistant',
-              content: msg.content,
-            });
-          }
-        }
+    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      { 
+        role: 'system', 
+        content: '你是一個記帳小精靈。請用親切、簡短、有點可愛的語氣回覆使用者。' 
       }
+    ];
 
-      // 添加當前訊息
-      messages.push({ role: 'user', content: userMessage });
-
-      const response = await getOpenAIClient().chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
-        messages,
-        temperature: 0.7,
-        max_tokens: 200,
-      });
-
-      return response.choices[0]?.message?.content || '抱歉，我無法產生回應。';
-    } catch (error: any) {
-      if (error?.status === 429) {
-        throw new Error('API 配額已用完或達到速率限制');
-      }
-      throw error;
+    if (context) {
+      messages.push({ role: 'system', content: `上下文資訊：\n${context}` });
     }
+
+    // 加入歷史對話 (限制數量避免 token 過多)
+    if (conversationHistory) {
+      conversationHistory.slice(-4).forEach(msg => {
+        messages.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
+      });
+    }
+
+    messages.push({ role: 'user', content: userMessage });
+
+    return this.callOpenAIText(messages);
   }
 
   /**
-   * 產生毒舌、嘲諷的警告訊息
+   * 產生毒舌警告
    */
   async generateSarcasticWarning(
     currentTotal: number,
@@ -398,51 +301,23 @@ ${context ? `\n【上下文資訊】\n${context}` : ''}`;
     difference: number,
     percentage: number
   ): Promise<string> {
-    try {
-      const prompt = `你是一個毒舌、嘲諷的記帳小精靈。使用者的本月花費是 $${currentTotal}，上個月花費是 $${lastMonthTotal}，本月比上個月多花了 $${difference}（增加了 ${percentage.toFixed(1)}%）。
+    const prompt = `
+    本月目前花費：$${currentTotal}
+    上月同期花費：$${lastMonthTotal}
+    差額：+$${difference} (+${percentage.toFixed(1)}%)
+    
+    任務：請用「毒舌、幽默、損友」的語氣警告使用者花太多了。
+    限制：30字以內，要一針見血。
+    範例：
+    - "你是想吃土嗎？這花費速度是坐火箭吧！🚀"
+    - "錢包在哭泣，你聽到了嗎？再買就要剁手了！💸"
+    `;
 
-請用毒舌、嘲諷但不過於冒犯的語氣警告使用者，提醒他花費增加的問題。語氣要像朋友間的調侃，但要有警示效果。
-
-範例風格：
-- "這個月比上個月多了 $${difference}，是想繼續當月光族嗎？💸"
-- "哇，這個月比上個月多花了 ${percentage.toFixed(1)}%，錢包在哭泣你知道嗎？😭"
-- "本月花費暴增 $${difference}，看來是時候檢視一下消費習慣了..."
-
-請產生一個簡短（30-50字）的毒舌警告訊息，要幽默但有效果。`;
-
-      const response = await getOpenAIClient().chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
-        messages: [
-          {
-            role: 'system',
-            content:
-              '你是一個毒舌但友善的記帳小精靈。用幽默、嘲諷但不過於冒犯的語氣提醒使用者注意花費。',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        temperature: 0.8, // 提高溫度以增加創意
-        max_tokens: 100,
-      });
-
-      return response.choices[0]?.message?.content || 
-        `這個月比上個月多了 $${difference}，是想繼續當月光族嗎？💸`;
-    } catch (error: any) {
-      // 如果 LLM 失敗，使用預設的毒舌訊息
-      if (percentage > 50) {
-        return `哇！這個月比上個月多花了 $${difference}（增加了 ${percentage.toFixed(1)}%），錢包在哭泣你知道嗎？😭`;
-      } else if (percentage > 20) {
-        return `這個月比上個月多了 $${difference}（增加了 ${percentage.toFixed(1)}%），是想繼續當月光族嗎？💸`;
-      } else {
-        return `本月花費比上個月多了 $${difference}（增加了 ${percentage.toFixed(1)}%），記得控制一下消費習慣喔～`;
-      }
-    }
+    return this.callOpenAIText([{ role: 'user', content: prompt }], 0.8, 100);
   }
 
   /**
-   * 解析更正指令，理解時間上下文和目標記錄
+   * 解析更正指令
    */
   async parseUpdateCommand(
     userMessage: string,
@@ -454,128 +329,95 @@ ${context ? `\n【上下文資訊】\n${context}` : ''}`;
       timestamp: Date;
     }>,
     conversationHistory?: Array<{ role: string; content: string }>
-  ): Promise<{
-    targetId?: string;
-    targetIndex?: number;
-    candidates?: Array<{ index: number; expense: any }>;
-    newAmount?: number;
-    newDetail?: string;
-    newCategory?: string;
-    error?: string;
-  }> {
-    try {
-      const now = new Date();
-      const currentDate = now.toLocaleString('zh-TW', {
-        timeZone: 'Asia/Taipei',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        weekday: 'long',
-      });
+  ) {
+    // 1. 準備最近紀錄的清單字串
+    const expensesList = recentExpenses.slice(0, 5).map((e, i) => {
+        const dateStr = new Date(e.timestamp).toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' });
+        return `${i + 1}. [${e.category}] ${e.detail} $${e.amount} (${dateStr})`;
+    }).join('\n');
 
-      // 構建最近記錄的上下文
-      const expensesContext = recentExpenses
-        .slice(0, 10)
-        .map((exp, idx) => {
-          const date = new Date(exp.timestamp);
-          const dateStr = date.toLocaleString('zh-TW', {
-            timeZone: 'Asia/Taipei',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-          });
-          return `${idx + 1}. ${exp.category} - ${exp.detail} $${exp.amount} (${dateStr})`;
-        })
-        .join('\n');
+    const prompt = `
+    使用者想要修改記帳紀錄。
+    
+    最近 5 筆紀錄：
+    ${expensesList}
 
-      const historyContext = conversationHistory
-        ? '\n\n對話歷史：\n' +
-          conversationHistory
-            .slice(-3)
-            .map((msg) => `${msg.role === 'user' ? '使用者' : '助手'}: ${msg.content}`)
-            .join('\n')
-        : '';
+    使用者指令："${userMessage}"
 
-      const prompt = `你是一個記帳助手，需要從使用者的更正指令中理解：
-1. 要修改哪一筆記錄（可能通過時間、類別、項目名稱等描述）
-2. 要修改成什麼內容（金額、項目名稱等）
-
-當前時間：${currentDate}
-
-最近10筆記錄：
-${expensesContext}${historyContext}
-
-使用者訊息：${userMessage}
-
-請分析使用者的更正指令，並回傳 JSON 格式：
-{
-  "targetIndex": 記錄序號（1-10，如果無法確定則為 null）,
-  "targetId": 記錄ID（如果確定是哪一筆，否則為 null）,
-  "candidates": [候選記錄的序號陣列，如果有多個可能的記錄],
-  "newAmount": 新金額（數字，如果未提及則為 null）,
-  "newDetail": 新項目名稱（字串，如果未提及則為 null）,
-  "newCategory": 新類別（字串，如果未提及則為 null）,
-  "error": 錯誤訊息（如果無法理解指令）
-}
-
-範例：
-- "更正一下今天的晚餐應該是100才對" → {"targetIndex": 1, "newAmount": 100, "newDetail": "晚餐"}
-- "昨天的晚餐要更正" → {"candidates": [1, 2], "error": "找到多筆可能的記錄，請選擇"}
-- "修改第3筆為150" → {"targetIndex": 3, "newAmount": 150}
-
-請嚴格按照 JSON 格式回覆，不要包含任何其他文字。`;
-
-      const response = await getOpenAIClient().chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
-        messages: [
-          {
-            role: 'system',
-            content:
-              '你是一個專業的記帳助手。從使用者的更正指令中提取要修改的記錄和修改內容。嚴格按照 JSON 格式回覆。',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        temperature: 0.2,
-        response_format: { type: 'json_object' },
-      });
-
-      const content = response.choices[0]?.message?.content;
-      if (!content) {
-        throw new Error('OpenAI 回應為空');
-      }
-
-      const parsed = JSON.parse(content);
-
-      // 如果有確定的 targetIndex，轉換為 targetId
-      if (parsed.targetIndex && !parsed.targetId) {
-        const idx = parsed.targetIndex - 1;
-        if (idx >= 0 && idx < recentExpenses.length) {
-          parsed.targetId = recentExpenses[idx]._id.toString();
-        }
-      }
-
-      // 如果有候選記錄，構建候選列表
-      if (parsed.candidates && parsed.candidates.length > 0) {
-        parsed.candidates = parsed.candidates.map((idx: number) => ({
-          index: idx,
-          expense: recentExpenses[idx - 1],
-        }));
-      }
-
-      return parsed;
-    } catch (error: any) {
-      logger.error('解析更正指令失敗', { error: error.message });
-      return { error: '無法理解更正指令，請使用格式：修改 [序號/項目名稱] [新金額/新內容]' };
+    請分析指令並回傳 JSON：
+    {
+      "targetIndex": 數字 (1-5, 對應清單序號, 若無法確定則 null),
+      "targetId": 字串 (對應的紀錄ID, 此欄位由後端處理，AI回傳 null 即可),
+      "newAmount": 數字 (若無修改則 null),
+      "newDetail": 字串 (新項目名稱, 若無修改則 null),
+      "newCategory": 字串 (新類別, 若無修改則 null),
+      "error": 字串 (若指令模糊無法判斷，請說明原因，否則 null)
     }
+    `;
+
+    // 定義回應的 Schema
+    const UpdateSchema = z.object({
+      targetIndex: z.number().nullable(),
+      targetId: z.string().nullable().optional(),
+      newAmount: z.number().nullable(),
+      newDetail: z.string().nullable(),
+      newCategory: z.string().nullable(),
+      error: z.string().nullable(),
+      candidates: z.array(z.number()).nullable().optional(),
+    });
+
+    const parsed = await this.callOpenAIJSON([{ role: 'user', content: prompt }], UpdateSchema, 'UpdateCommand');
+
+    // 2. 後處理：將 Index 轉為真實 ID
+    if (parsed.targetIndex !== null) {
+      const idx = parsed.targetIndex - 1;
+      if (idx >= 0 && idx < recentExpenses.length) {
+        parsed.targetId = recentExpenses[idx]._id.toString();
+      }
+    }
+
+    return parsed;
+  }
+
+  /**
+   * Fallback：當 OpenAI 無回應時的簡易解析
+   */
+  private fallbackParsedMessage(userMessage: string): ParsedMessage {
+    const amountMatch = userMessage.match(/(\d+(?:\.\d+)?)/);
+    const amount = amountMatch ? Number(amountMatch[0]) : 0;
+    const cleaned = userMessage.replace(/(\d+(?:\.\d+)?)/, '').trim();
+
+    const incomeKeywords = ['收入', '薪水', '薪資', '匯款', '轉帳', 'bonus', '獎金', '發薪', '領錢'];
+    const isIncome = incomeKeywords.some((keyword) => cleaned.includes(keyword));
+
+    if (amount === 0) {
+      return {
+        intent: 'chat',
+        item: '',
+        amount: 0,
+        category: '其他',
+        reply: '👋 需要我幫你記帳或查詢統計嗎？可以試著輸入「午餐 120」。',
+      };
+    }
+
+    if (isIncome) {
+      return {
+        intent: 'income',
+        item: cleaned || '收入',
+        amount,
+        category: '薪資',
+        reply: `💰 已記錄收入：$${amount}`,
+      };
+    }
+
+    return {
+      intent: 'expense',
+      item: cleaned || '未指定項目',
+      amount,
+      category: cleaned.includes('咖啡') || cleaned.includes('茶') || cleaned.includes('飲料') ? '飲品' : '其他',
+      reply: `✅ 已記錄：${cleaned || '支出'} $${amount}`,
+    };
   }
 }
 
 export default new OpenAIService();
-
-

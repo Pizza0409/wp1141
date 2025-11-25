@@ -398,14 +398,20 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
         conversationHistory
       );
 
+      const candidateIndexes = parsedUpdate.candidates || [];
+
       // 如果有錯誤或多個候選，顯示候選列表
-      if (parsedUpdate.error || (parsedUpdate.candidates && parsedUpdate.candidates.length > 1)) {
-        if (parsedUpdate.candidates && parsedUpdate.candidates.length > 0) {
+      if (parsedUpdate.error || candidateIndexes.length > 1) {
+        if (candidateIndexes.length > 0) {
           let message = '找到多筆可能的記錄，請選擇要修改的記錄：\n\n';
-          parsedUpdate.candidates.forEach((candidate: any) => {
-            const date = new Date(candidate.expense.timestamp);
-            const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
-            message += `${candidate.index}. ${candidate.expense.category} - ${candidate.expense.detail} $${candidate.expense.amount} (${dateStr})\n`;
+          candidateIndexes.forEach((candidateIndex: number) => {
+            const idx = candidateIndex - 1;
+            if (idx >= 0 && idx < recentExpenses.length) {
+              const candidateExpense = recentExpenses[idx];
+              const date = new Date(candidateExpense.timestamp);
+              const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
+              message += `${candidateIndex}. ${candidateExpense.category} - ${candidateExpense.detail} $${candidateExpense.amount} (${dateStr})\n`;
+            }
           });
           message += '\n請回覆「修改第X筆 [新內容]」來指定要修改的記錄。';
           await lineService.replyTextMessage(replyToken, message);
@@ -602,15 +608,29 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
       } else if (parsed.intent === 'income') {
         // 記帳（收入）
         if (parsed.amount > 0) {
+          const incomeCategory = parsed.category || '其他收入';
+          const incomeDetail = parsed.item || '未指定';
+          
           await incomeService.createIncome({
             userId,
-            category: parsed.category || '其他收入',
-            detail: parsed.item || '未指定',
+            category: incomeCategory,
+            detail: incomeDetail,
             amount: parsed.amount,
           });
 
-          // 使用 LLM 生成的 reply 或自訂確認訊息
-          const replyText = parsed.reply || `💰 已記錄收入：${parsed.category} - ${parsed.item} $${parsed.amount}`;
+          // 改進回覆格式：如果 category 和 item 重複或類似，簡化顯示
+          let replyText = parsed.reply;
+          if (!replyText) {
+            // 如果 item 是"收入"且 category 是"其他收入"，簡化顯示
+            if (incomeDetail === '收入' && incomeCategory === '其他收入') {
+              replyText = `💰 已記錄收入：$${parsed.amount}`;
+            } else if (incomeDetail === incomeCategory || incomeDetail.includes(incomeCategory) || incomeCategory.includes(incomeDetail)) {
+              // 如果 item 和 category 重複，只顯示一個
+              replyText = `💰 已記錄收入：${incomeCategory} $${parsed.amount}`;
+            } else {
+              replyText = `💰 已記錄收入：${incomeCategory} - ${incomeDetail} $${parsed.amount}`;
+            }
+          }
           await lineService.replyTextMessage(replyToken, replyText);
 
           await conversationRepository.addMessage(userId, {

@@ -83,7 +83,7 @@ export class LineService {
   }
 
   /**
-   * 回傳統計訊息（帶圓餅圖）
+   * 回傳統計訊息（帶原生樣式條列圖）
    */
   async replyStatisticsWithChart(
     replyToken: string,
@@ -91,226 +91,169 @@ export class LineService {
     incomeStats?: MonthlyIncomeStatistics
   ): Promise<void> {
     try {
-      const incomeTotal = incomeStats?.total ?? 0;
-      const netIncome = incomeTotal - expenseStats.total;
-      const formattedCurrency = (value: number) => `$${value.toLocaleString()}`;
+      const messages: Message[] = [];
 
-      const bodyContents: any[] = [
-        {
-          type: 'text',
-          text: `📊 ${expenseStats.month} 統計`,
-          weight: 'bold',
-          size: 'xl',
-          color: '#1DB446',
-        },
-        {
-          type: 'separator',
-          margin: 'md',
-        },
-        {
-          type: 'box',
-          layout: 'vertical',
-          margin: 'md',
-          spacing: 'sm',
-          contents: [
-            {
-              type: 'box',
-              layout: 'horizontal',
-              contents: [
-                { type: 'text', text: '💸 支出', size: 'sm', color: '#555555' },
-                {
-                  type: 'text',
-                  text: formattedCurrency(expenseStats.total),
-                  size: 'sm',
-                  color: '#111111',
-                  align: 'end',
-                },
-              ],
-            },
-            {
-              type: 'box',
-              layout: 'horizontal',
-              contents: [
-                { type: 'text', text: '💰 收入', size: 'sm', color: '#555555' },
-                {
-                  type: 'text',
-                  text: formattedCurrency(incomeTotal),
-                  size: 'sm',
-                  color: '#111111',
-                  align: 'end',
-                },
-              ],
-            },
-            {
-              type: 'box',
-              layout: 'horizontal',
-              contents: [
-                { type: 'text', text: '📈 淨收入', size: 'sm', color: '#555555' },
-                {
-                  type: 'text',
-                  text: formattedCurrency(netIncome),
-                  size: 'sm',
-                  color: netIncome >= 0 ? '#1DB446' : '#D25565',
-                  align: 'end',
-                },
-              ],
-            },
-          ],
-        },
-      ];
+      const expenseFlex = this.buildCategoryFlexMessage(expenseStats, {
+        icon: '📊',
+        title: `${expenseStats.month} 支出統計`,
+        accentColor: '#1DB446',
+        emptyText: '本期間尚無支出記錄',
+      });
+      if (expenseFlex) {
+        messages.push(expenseFlex);
+      }
 
-      const addCategorySection = (
-        title: string,
-        stats: { total: number; byCategory: Record<string, number> } | undefined,
-        color: string,
-        emptyText: string
-      ) => {
+      if (incomeStats) {
+        const incomeFlex = this.buildCategoryFlexMessage(incomeStats, {
+          icon: '💰',
+          title: `${incomeStats.month} 收入統計`,
+          accentColor: '#F5A623',
+          emptyText: '本期間尚無收入記錄',
+        });
+        if (incomeFlex) {
+          messages.push(incomeFlex);
+        }
+      }
+
+      if (messages.length === 0) {
+        await this.replyStatistics(replyToken, expenseStats, incomeStats);
+        return;
+      }
+
+      await client.replyMessage(replyToken, messages.length === 1 ? messages[0] : messages);
+      logger.info('成功回覆統計（帶原生樣式）', { replyToken });
+    } catch (error: any) {
+      logger.error('回覆統計（帶原生樣式）失敗，降級為文字訊息', {
+        error: error.message,
+        replyToken,
+      });
+      await this.replyStatistics(replyToken, expenseStats, incomeStats);
+    }
+  }
+
+  private buildCategoryFlexMessage(
+    stats: { month: string; total: number; byCategory: Record<string, number> },
+    options: { icon: string; title: string; accentColor: string; emptyText: string }
+  ): FlexMessage | null {
+    const { icon, title, accentColor, emptyText } = options;
+    const sortedCategories = Object.entries(stats.byCategory || {})
+      .filter(([, amount]) => amount > 0)
+      .sort((a, b) => b[1] - a[1]);
+
+    const bodyContents: any[] = [
+      {
+        type: 'text',
+        text: `${icon} ${title}`,
+        weight: 'bold',
+        size: 'xl',
+        color: accentColor,
+      },
+      { type: 'separator', margin: 'md' },
+      {
+        type: 'text',
+        text: `總計：$${stats.total.toLocaleString()}`,
+        weight: 'bold',
+        size: 'xxl',
+        margin: 'md',
+      },
+    ];
+
+    if (sortedCategories.length === 0) {
+      bodyContents.push({
+        type: 'text',
+        text: emptyText,
+        size: 'sm',
+        color: '#999999',
+        margin: 'md',
+      });
+    } else {
+      sortedCategories.forEach(([category, amount]) => {
+        const percentage = stats.total > 0 ? (amount / stats.total) * 100 : 0;
+        const barWidth = Math.max(5, Math.min(100, percentage));
+
         bodyContents.push(
           {
             type: 'separator',
             margin: 'lg',
           },
           {
+            type: 'box',
+            layout: 'horizontal',
+            contents: [
+              {
+                type: 'text',
+                text: category,
+                size: 'sm',
+                color: '#555555',
+                flex: 0,
+              },
+              {
+                type: 'text',
+                text: `$${amount.toLocaleString()}`,
+                size: 'sm',
+                color: '#111111',
+                align: 'end',
+              },
+            ],
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            margin: 'sm',
+            contents: [
+              {
+                type: 'box',
+                layout: 'horizontal',
+                contents: [
+                  {
+                    type: 'box',
+                    layout: 'vertical',
+                    contents: [],
+                    width: `${barWidth}%`,
+                    backgroundColor: accentColor,
+                    height: '8px',
+                    cornerRadius: '4px',
+                  },
+                  {
+                    type: 'box',
+                    layout: 'vertical',
+                    contents: [],
+                    width: `${100 - barWidth}%`,
+                    backgroundColor: '#E5E5E5',
+                    height: '8px',
+                    cornerRadius: '4px',
+                  },
+                ],
+              },
+            ],
+          },
+          {
             type: 'text',
-            text: title,
-            weight: 'bold',
-            size: 'md',
-            color: '#333333',
-            margin: 'md',
+            text: `${percentage.toFixed(1)}%`,
+            size: 'xs',
+            color: '#888888',
+            align: 'end',
+            margin: 'sm',
           }
         );
-
-        if (!stats || !stats.byCategory || Object.keys(stats.byCategory).length === 0) {
-          bodyContents.push({
-            type: 'text',
-            text: emptyText,
-            size: 'sm',
-            color: '#999999',
-            margin: 'sm',
-          });
-          return;
-        }
-
-        const sortedCategories = Object.entries(stats.byCategory)
-          .filter(([, amount]) => amount > 0)
-          .sort((a, b) => b[1] - a[1]);
-
-        if (sortedCategories.length === 0) {
-          bodyContents.push({
-            type: 'text',
-            text: emptyText,
-            size: 'sm',
-            color: '#999999',
-            margin: 'sm',
-          });
-          return;
-        }
-
-        sortedCategories.forEach(([category, amount]) => {
-          const percentage = stats.total > 0 ? (amount / stats.total) * 100 : 0;
-          const barWidth = Math.max(5, Math.min(100, percentage));
-
-          bodyContents.push(
-            {
-              type: 'box',
-              layout: 'vertical',
-              margin: 'md',
-              spacing: 'sm',
-              contents: [
-                {
-                  type: 'box',
-                  layout: 'horizontal',
-                  contents: [
-                    {
-                      type: 'text',
-                      text: category,
-                      size: 'sm',
-                      color: '#555555',
-                      flex: 0,
-                    },
-                    {
-                      type: 'text',
-                      text: formattedCurrency(amount),
-                      size: 'sm',
-                      color: '#111111',
-                      align: 'end',
-                    },
-                  ],
-                },
-                {
-                  type: 'box',
-                  layout: 'vertical',
-                  margin: 'sm',
-                  contents: [
-                    {
-                      type: 'box',
-                      layout: 'horizontal',
-                      contents: [
-                        {
-                          type: 'box',
-                          layout: 'vertical',
-                          contents: [],
-                          width: `${barWidth}%`,
-                          backgroundColor: color,
-                          height: '8px',
-                          cornerRadius: '4px',
-                        },
-                        {
-                          type: 'box',
-                          layout: 'vertical',
-                          contents: [],
-                          width: `${100 - barWidth}%`,
-                          backgroundColor: '#E5E5E5',
-                          height: '8px',
-                          cornerRadius: '4px',
-                        },
-                      ],
-                    },
-                  ],
-                },
-                {
-                  type: 'text',
-                  text: `${percentage.toFixed(1)}%`,
-                  size: 'xs',
-                  color: '#888888',
-                  align: 'end',
-                  margin: 'sm',
-                },
-              ],
-            }
-          );
-        });
-      };
-
-      addCategorySection('💸 支出分類', expenseStats, '#1DB446', '本期間尚無支出細項');
-      addCategorySection('💰 收入分類', incomeStats, '#F5A623', '本期間尚無收入細項');
-
-      const bubble: FlexBubble = {
-        type: 'bubble',
-        body: {
-          type: 'box',
-          layout: 'vertical',
-          contents: bodyContents,
-          paddingAll: '20px',
-        },
-      };
-
-      const flexMessage: FlexMessage = {
-        type: 'flex',
-        altText: `${expenseStats.month} 統計：支出 $${expenseStats.total}${incomeStats ? `，收入 $${incomeStats.total}` : ''}`,
-        contents: bubble,
-      };
-
-      await client.replyMessage(replyToken, flexMessage);
-      logger.info('成功回覆統計（帶圓餅圖）', { replyToken });
-    } catch (error: any) {
-      logger.error('回覆統計（帶圓餅圖）失敗，降級為文字訊息', {
-        error: error.message,
-        replyToken,
       });
-      // 降級為文字訊息
-      await this.replyStatistics(replyToken, expenseStats, incomeStats);
     }
+
+    const bubble: FlexBubble = {
+      type: 'bubble',
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        contents: bodyContents,
+        paddingAll: '20px',
+      },
+    };
+
+    return {
+      type: 'flex',
+      altText: `${title}：總計 $${stats.total}`,
+      contents: bubble,
+    };
   }
 
   /**

@@ -1,6 +1,6 @@
 import { Client, Message, TextMessage, QuickReply, QuickReplyItem, FlexMessage, FlexBubble, FlexBox, FlexText, FlexSeparator } from '@line/bot-sdk';
 import logger from './logger';
-import { MonthlyStatistics } from '@/types';
+import { MonthlyIncomeStatistics, MonthlyStatistics } from '@/types';
 
 const client = new Client({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
@@ -87,24 +87,18 @@ export class LineService {
    */
   async replyStatisticsWithChart(
     replyToken: string,
-    statistics: MonthlyStatistics
+    expenseStats: MonthlyStatistics,
+    incomeStats?: MonthlyIncomeStatistics
   ): Promise<void> {
     try {
-      // 按金額排序類別
-      const sortedCategories = Object.entries(statistics.byCategory).sort(
-        (a, b) => b[1] - a[1]
-      );
+      const incomeTotal = incomeStats?.total ?? 0;
+      const netIncome = incomeTotal - expenseStats.total;
+      const formattedCurrency = (value: number) => `$${value.toLocaleString()}`;
 
-      if (sortedCategories.length === 0) {
-        await this.replyTextMessage(replyToken, `📊 ${statistics.month} 統計\n\n總計：$${statistics.total}\n\n本月尚無記錄`);
-        return;
-      }
-
-      // 建立 Flex Message 的內容
       const bodyContents: any[] = [
         {
           type: 'text',
-          text: `📊 ${statistics.month} 統計`,
+          text: `📊 ${expenseStats.month} 統計`,
           weight: 'bold',
           size: 'xl',
           color: '#1DB446',
@@ -114,97 +108,182 @@ export class LineService {
           margin: 'md',
         },
         {
-          type: 'text',
-          text: `總計：$${statistics.total.toLocaleString()}`,
-          weight: 'bold',
-          size: 'xxl',
+          type: 'box',
+          layout: 'vertical',
           margin: 'md',
+          spacing: 'sm',
+          contents: [
+            {
+              type: 'box',
+              layout: 'horizontal',
+              contents: [
+                { type: 'text', text: '💸 支出', size: 'sm', color: '#555555' },
+                {
+                  type: 'text',
+                  text: formattedCurrency(expenseStats.total),
+                  size: 'sm',
+                  color: '#111111',
+                  align: 'end',
+                },
+              ],
+            },
+            {
+              type: 'box',
+              layout: 'horizontal',
+              contents: [
+                { type: 'text', text: '💰 收入', size: 'sm', color: '#555555' },
+                {
+                  type: 'text',
+                  text: formattedCurrency(incomeTotal),
+                  size: 'sm',
+                  color: '#111111',
+                  align: 'end',
+                },
+              ],
+            },
+            {
+              type: 'box',
+              layout: 'horizontal',
+              contents: [
+                { type: 'text', text: '📈 淨收入', size: 'sm', color: '#555555' },
+                {
+                  type: 'text',
+                  text: formattedCurrency(netIncome),
+                  size: 'sm',
+                  color: netIncome >= 0 ? '#1DB446' : '#D25565',
+                  align: 'end',
+                },
+              ],
+            },
+          ],
         },
       ];
 
-      // 添加各類別的花費（使用進度條模擬圓餅圖效果）
-      sortedCategories.forEach(([category, amount]) => {
-        const percentage = statistics.total > 0
-          ? (amount / statistics.total) * 100
-          : 0;
-        
-        // 計算進度條長度（最大寬度為 100%）
-        const barWidth = Math.max(5, Math.min(100, percentage));
-
+      const addCategorySection = (
+        title: string,
+        stats: { total: number; byCategory: Record<string, number> } | undefined,
+        color: string,
+        emptyText: string
+      ) => {
         bodyContents.push(
           {
             type: 'separator',
             margin: 'lg',
           },
           {
-            type: 'box',
-            layout: 'vertical',
+            type: 'text',
+            text: title,
+            weight: 'bold',
+            size: 'md',
+            color: '#333333',
             margin: 'md',
-            spacing: 'sm',
-            contents: [
-              {
-                type: 'box',
-                layout: 'horizontal',
-                contents: [
-                  {
-                    type: 'text',
-                    text: category,
-                    size: 'sm',
-                    color: '#555555',
-                    flex: 0,
-                  },
-                  {
-                    type: 'text',
-                    text: `$${amount.toLocaleString()}`,
-                    size: 'sm',
-                    color: '#111111',
-                    align: 'end',
-                  },
-                ],
-              },
-              {
-                type: 'box',
-                layout: 'vertical',
-                margin: 'sm',
-                contents: [
-                  {
-                    type: 'box',
-                    layout: 'horizontal',
-                    contents: [
-                      {
-                        type: 'box',
-                        layout: 'vertical',
-                        contents: [],
-                        width: `${barWidth}%`,
-                        backgroundColor: '#1DB446',
-                        height: '8px',
-                        cornerRadius: '4px',
-                      },
-                      {
-                        type: 'box',
-                        layout: 'vertical',
-                        contents: [],
-                        width: `${100 - barWidth}%`,
-                        backgroundColor: '#E5E5E5',
-                        height: '8px',
-                        cornerRadius: '4px',
-                      },
-                    ],
-                  },
-                ],
-              },
-              {
-                type: 'text',
-                text: `${percentage.toFixed(1)}%`,
-                size: 'xs',
-                color: '#888888',
-                align: 'end',
-                margin: 'sm',
-              },
-            ],
           }
         );
-      });
+
+        if (!stats || !stats.byCategory || Object.keys(stats.byCategory).length === 0) {
+          bodyContents.push({
+            type: 'text',
+            text: emptyText,
+            size: 'sm',
+            color: '#999999',
+            margin: 'sm',
+          });
+          return;
+        }
+
+        const sortedCategories = Object.entries(stats.byCategory)
+          .filter(([, amount]) => amount > 0)
+          .sort((a, b) => b[1] - a[1]);
+
+        if (sortedCategories.length === 0) {
+          bodyContents.push({
+            type: 'text',
+            text: emptyText,
+            size: 'sm',
+            color: '#999999',
+            margin: 'sm',
+          });
+          return;
+        }
+
+        sortedCategories.forEach(([category, amount]) => {
+          const percentage = stats.total > 0 ? (amount / stats.total) * 100 : 0;
+          const barWidth = Math.max(5, Math.min(100, percentage));
+
+          bodyContents.push(
+            {
+              type: 'box',
+              layout: 'vertical',
+              margin: 'md',
+              spacing: 'sm',
+              contents: [
+                {
+                  type: 'box',
+                  layout: 'horizontal',
+                  contents: [
+                    {
+                      type: 'text',
+                      text: category,
+                      size: 'sm',
+                      color: '#555555',
+                      flex: 0,
+                    },
+                    {
+                      type: 'text',
+                      text: formattedCurrency(amount),
+                      size: 'sm',
+                      color: '#111111',
+                      align: 'end',
+                    },
+                  ],
+                },
+                {
+                  type: 'box',
+                  layout: 'vertical',
+                  margin: 'sm',
+                  contents: [
+                    {
+                      type: 'box',
+                      layout: 'horizontal',
+                      contents: [
+                        {
+                          type: 'box',
+                          layout: 'vertical',
+                          contents: [],
+                          width: `${barWidth}%`,
+                          backgroundColor: color,
+                          height: '8px',
+                          cornerRadius: '4px',
+                        },
+                        {
+                          type: 'box',
+                          layout: 'vertical',
+                          contents: [],
+                          width: `${100 - barWidth}%`,
+                          backgroundColor: '#E5E5E5',
+                          height: '8px',
+                          cornerRadius: '4px',
+                        },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  type: 'text',
+                  text: `${percentage.toFixed(1)}%`,
+                  size: 'xs',
+                  color: '#888888',
+                  align: 'end',
+                  margin: 'sm',
+                },
+              ],
+            }
+          );
+        });
+      };
+
+      addCategorySection('💸 支出分類', expenseStats, '#1DB446', '本期間尚無支出細項');
+      addCategorySection('💰 收入分類', incomeStats, '#F5A623', '本期間尚無收入細項');
 
       const bubble: FlexBubble = {
         type: 'bubble',
@@ -218,7 +297,7 @@ export class LineService {
 
       const flexMessage: FlexMessage = {
         type: 'flex',
-        altText: `${statistics.month} 統計：總計 $${statistics.total}`,
+        altText: `${expenseStats.month} 統計：支出 $${expenseStats.total}${incomeStats ? `，收入 $${incomeStats.total}` : ''}`,
         contents: bubble,
       };
 
@@ -230,7 +309,7 @@ export class LineService {
         replyToken,
       });
       // 降級為文字訊息
-      await this.replyStatistics(replyToken, statistics);
+      await this.replyStatistics(replyToken, expenseStats, incomeStats);
     }
   }
 

@@ -491,7 +491,7 @@ async function buildMonthlyStatsSummary(userId: string, year: number, month: num
     `📈 淨收入：$${formatAmount(netIncome)}\n\n` +
     moodMessage;
 
-  return { statsText, expenseStats };
+  return { statsText, expenseStats, incomeStats };
 }
 
 // 驗證簽名
@@ -576,13 +576,13 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
       } else if (action === 'current_month_stats') {
         // 本月統計
         const now = new Date();
-        const { statsText, expenseStats } = await buildMonthlyStatsSummary(
+        const { statsText, expenseStats, incomeStats } = await buildMonthlyStatsSummary(
           userId,
           now.getFullYear(),
           now.getMonth() + 1
         );
         await lineService.replyTextMessage(replyToken, statsText);
-        await lineService.replyStatisticsWithChart(replyToken, expenseStats);
+        await lineService.replyStatisticsWithChart(replyToken, expenseStats, incomeStats);
         return;
       } else if (action === 'today_expenses') {
         // 今日記錄
@@ -616,9 +616,9 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
         const year = parseInt(params.get('year') || '0', 10);
         const month = parseInt(params.get('month') || '0', 10);
         if (year > 0 && month > 0) {
-          const { statsText, expenseStats } = await buildMonthlyStatsSummary(userId, year, month);
+          const { statsText, expenseStats, incomeStats } = await buildMonthlyStatsSummary(userId, year, month);
           await lineService.replyTextMessage(replyToken, statsText);
-          await lineService.replyStatisticsWithChart(replyToken, expenseStats);
+          await lineService.replyStatisticsWithChart(replyToken, expenseStats, incomeStats);
         }
         return;
       }
@@ -1006,13 +1006,13 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
 
       if (userMessage.trim() === '查詢統計') {
         const now = new Date();
-        const { statsText, expenseStats } = await buildMonthlyStatsSummary(
+        const { statsText, expenseStats, incomeStats } = await buildMonthlyStatsSummary(
           userId,
           now.getFullYear(),
           now.getMonth() + 1
         );
         await lineService.replyTextMessage(replyToken, statsText);
-        await lineService.replyStatisticsWithChart(replyToken, expenseStats);
+        await lineService.replyStatisticsWithChart(replyToken, expenseStats, incomeStats);
         await conversationRepository.addMessage(userId, {
           role: 'assistant',
           content: statsText,
@@ -1250,8 +1250,8 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
         const statsText = `📊 ${statistics.month} 統計\n\n💰 收入：$${incomeStats.total}\n💸 支出：$${statistics.total}\n📈 淨收入：$${netIncome}\n\n`;
         await lineService.replyTextMessage(replyToken, statsText);
         
-        // 然後顯示支出統計圖表
-        await lineService.replyStatisticsWithChart(replyToken, statistics);
+        // 然後顯示支出/收入統計圖表
+        await lineService.replyStatisticsWithChart(replyToken, statistics, incomeStats);
         
         await conversationRepository.addMessage(userId, {
           role: 'assistant',

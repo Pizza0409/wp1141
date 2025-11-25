@@ -1,23 +1,26 @@
 # Line Bot AI 記帳系統
 
-這是一個整合 Line Messaging API 的智慧記帳機器人系統，使用 Next.js、TypeScript、MongoDB 和 OpenAI 開發。
-LineID: @601plank
-<a href="https://lin.ee/80pqE1f"><img src="https://scdn.line-apps.com/n/line_add_friends/btn/zh-Hant.png" alt="加入好友" height="36" border="0"></a>
-後台管理：https://my-chat-bot-blush.vercel.app/
+這是以 Next.js + TypeScript + MongoDB + OpenAI 打造的 LINE 智慧記帳機器人，結合 Flex UI 與 AI 語意理解，提供自然語言記帳、統計分析與管理後台。
+- Line 官方帳號：`@601plank`
+- 一鍵加入好友：<a href="https://lin.ee/80pqE1f"><img src="https://scdn.line-apps.com/n/line_add_friends/btn/zh-Hant.png" alt="加入好友" height="36" border="0"></a>
+- 管理後台入口：https://my-chat-bot-blush.vercel.app/
 
 ## 功能特色
 
-- 🤖 **AI 記帳助手**：使用 OpenAI 解析自然語言記帳訊息
-- 📊 **統計分析**：自動統計每月各項目花費及總額
-- 🎯 **項目管理**：支援預設項目類別及使用者自訂類別
-- 💬 **對話記錄**：完整保存所有對話歷史
+- 🤖 **AI 記帳助手**：使用 OpenAI 解析自然語言記帳訊息，支援支出與收入
+- ✏️ **語意更正與刪除**：輸入「第一筆改成飲品」「刪除昨天餐點」，AI 會自動鎖定紀錄進行修正
+- 📊 **雙向統計**：Rich Menu 與指令查詢同時顯示支出與收入，並即時計算淨收入、推送鼓勵或毒舌提醒
+- 📈 **Flex 圖卡**：以 LINE 原生 Flex Message 呈現支出 / 收入類別占比（條圖 / 圓餅圖）
+- 🔎 **細項查詢**：支援「餐點細項」「11/25 花費細項」「收入明細」等情境
+- 🎯 **項目管理**：預設類別 + 自訂類別映射（含「食」→「餐點」等語意別名）
+- 💬 **對話記錄**：完整保存所有對話歷史，方便追蹤上下文
 - 📱 **管理後台**：即時監控對話、檢視統計、管理歷程
 - 🛡️ **錯誤處理**：優雅降級機制，處理 LLM/資料庫/Line API 失敗情況
 
 ## 技術棧
 
 - **框架**: Next.js 14+ (App Router) with TypeScript
-- **LLM**: OpenAI API (GPT-3.5/GPT-4)
+- **LLM**: OpenAI API (GPT-4)
 - **資料庫**: MongoDB Atlas + Mongoose ODM
 - **樣式**: Tailwind CSS
 - **驗證**: Zod
@@ -73,7 +76,7 @@ LINE_CHANNEL_SECRET=your_line_channel_secret
 
 # OpenAI API
 OPENAI_API_KEY=your_openai_api_key
-OPENAI_MODEL=gpt-3.5-turbo  # 可選，預設為 gpt-3.5-turbo
+OPENAI_MODEL=gpt-4o-mini
 
 # MongoDB
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
@@ -132,22 +135,31 @@ https://your-app.vercel.app/api/line
 
 ## 使用方式
 
-### 記帳功能
+### 記帳 / 語意指令
 
-使用者可以透過以下方式記錄支出：
-
-- `午餐 50` - 記錄午餐 $50
-- `今天晚餐花了100元` - AI 解析並記錄
-- `星巴克 120` - 記錄飲品支出
+- `午餐 50`、`今天晚餐花了100`：自動判斷為支出
+- `收入 50000`、`薪水 30000`、`投資收益 8000`：記錄收入
+- `第一筆要改成飲品`、`更正今天午餐為120`：AI 協助更正現有紀錄
+- `刪除第3筆`、`刪除昨天的餐點`：語意刪除
 
 ### 查詢功能
 
-- `這個月花了多少` - 查詢本月統計
-- `今天的記錄` - 查看今日所有記錄
+- `查詢統計` / Rich Menu「本月統計」：顯示本月支出、收入、淨收入與 Flex 圖卡
+- `上個月花多少`、`這半年花多少`、`今年花多少`：範圍統計
+- `餐點細項`、`11/25 花費細項`、`收入細項`：查看類別或日期明細
+- `今天的記錄`：列出今日所有紀錄
+
+### Rich Menu 快捷
+
+- **使用說明**：快速查看所有指令
+- **每月開銷**：跳出年份 / 月份快速選單
+- **本月統計**：即時統計 + Flex 圖卡
+- **今日記錄**：列出今日支出
 
 ### 管理功能
 
-- `新增項目：交通` - 新增自訂項目類別
+- `新增項目：交通`：新增自訂類別
+- 後台 `/admin`：可檢視統計、對話紀錄、即時事件
 
 ## 管理後台
 

@@ -60,6 +60,20 @@ type DetailQuery = {
   label: string;
 };
 
+type IncomePeriod =
+  | {
+      type: 'month';
+      year: number;
+      month: number;
+      label?: string;
+    }
+  | {
+      type: 'range';
+      start: Date;
+      end: Date;
+      label: string;
+    };
+
 const TIME_KEYWORDS = [
   '今天',
   '今日',
@@ -1025,9 +1039,12 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
         // 查詢統計
         let statistics: any;
         let replyText = '';
-
-        // 判斷查詢類型
         const message = userMessage.toLowerCase();
+        let incomePeriod: IncomePeriod | null = null;
+        let cachedIncomeStats: { month: string; total: number; byCategory: Record<string, number> } | null =
+          null;
+        let comparisonResult: Awaited<ReturnType<typeof expenseService.compareMonthlyExpenses>> | null = null;
+        let isCurrentMonthQuery = false;
         
         const incomeDetailRequest = /(收入)(的)?(細項|明細|列表|記錄)/.test(userMessage);
         if (incomeDetailRequest) {
@@ -1062,16 +1079,33 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
           return;
         } else if (message.includes('上個月') || message.includes('上个月')) {
           // 查詢上個月統計
-          statistics = await expenseService.getLastMonthStatistics(userId);
+          const now = new Date();
+          const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          const targetYear = lastMonth.getFullYear();
+          const targetMonth = lastMonth.getMonth() + 1;
+          statistics = await expenseService.getMonthlyStatistics(userId, targetYear, targetMonth);
           replyText = `上個月統計：總計 $${statistics.total}`;
+          incomePeriod = { type: 'month', year: targetYear, month: targetMonth, label: statistics.month };
         } else if (message.includes('這半年') || message.includes('这半年') || message.includes('半年')) {
           // 查詢這半年統計
           statistics = await expenseService.getHalfYearStatistics(userId);
           replyText = `過去6個月統計：總計 $${statistics.total}`;
+          const now = new Date();
+          const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+          sixMonthsAgo.setHours(0, 0, 0, 0);
+          const rangeEnd = new Date(now);
+          rangeEnd.setHours(23, 59, 59, 999);
+          incomePeriod = { type: 'range', start: sixMonthsAgo, end: rangeEnd, label: '過去6個月' };
         } else if (message.includes('今年') || message.includes('這年') || message.includes('这年')) {
           // 查詢今年統計
           statistics = await expenseService.getYearStatistics(userId);
           replyText = `${statistics.month}統計：總計 $${statistics.total}`;
+          const now = new Date();
+          const startOfYear = new Date(now.getFullYear(), 0, 1);
+          startOfYear.setHours(0, 0, 0, 0);
+          const endOfYear = new Date(now);
+          endOfYear.setHours(23, 59, 59, 999);
+          incomePeriod = { type: 'range', start: startOfYear, end: endOfYear, label: statistics.month };
         } else {
           // 預設：查詢本月統計
           const now = new Date();
@@ -1093,42 +1127,33 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
           ]);
           
           statistics = monthStats;
+          cachedIncomeStats = incomeStats;
+          comparisonResult = comparison;
           const netIncome = incomeStats.total - statistics.total;
           replyText = `本月統計：支出 $${statistics.total} | 收入 $${incomeStats.total} | 淨收入 $${netIncome}`;
-
-          // 毒舌警告：比較本月與上月花費
-          if (comparison && comparison.isIncreased && comparison.percentage > 10) {
-            try {
-              // 非同步產生警告訊息（不阻塞主要回應）
-              openaiService.generateSarcasticWarning(
-                comparison.currentMonth.total,
-                comparison.lastMonth.total,
-                comparison.difference,
-                comparison.percentage
-              ).then((warningMessage) => {
-                // 使用 pushMessage 發送警告（因為 replyToken 已使用）
-                lineService.pushMessage(userId, {
-                  type: 'text',
-                  text: `⚠️ ${warningMessage}`,
-                }).catch((err: any) => {
-                  logger.error('發送毒舌警告失敗', { error: err.message });
-                });
-              }).catch((err: any) => {
-                logger.warn('產生毒舌警告失敗', { error: err.message });
-              });
-            } catch (error: any) {
-              logger.warn('比較月份花費失敗，跳過毒舌警告', { error: error.message });
-            }
-          }
+          incomePeriod = {
+            type: 'month',
+            year: now.getFullYear(),
+            month: now.getMonth() + 1,
+            label: monthStats.month,
+          };
+          isCurrentMonthQuery = true;
         }
 
-        // 取得收入統計（如果有的話）
-        const now = new Date();
-        const incomeStats = await incomeService.getMonthlyStatistics(
-          userId,
-          now.getFullYear(),
-          now.getMonth() + 1
-        ).catch(() => ({ month: statistics.month, total: 0, byCategory: {} }));
+        let incomeStats = cachedIncomeStats;
+        if (!incomeStats) {
+          if (incomePeriod?.type === 'month') {
+            incomeStats = await incomeService
+              .getMonthlyStatistics(userId, incomePeriod.year, incomePeriod.month)
+              .catch(() => ({ month: statistics.month, total: 0, byCategory: {} }));
+          } else if (incomePeriod?.type === 'range') {
+            incomeStats = await incomeService
+              .getStatisticsByDateRange(userId, incomePeriod.start, incomePeriod.end, incomePeriod.label)
+              .catch(() => ({ month: statistics.month, total: 0, byCategory: {} }));
+          } else {
+            incomeStats = { month: statistics.month, total: 0, byCategory: {} };
+          }
+        }
 
         // 回覆統計結果（使用帶圓餅圖的版本，但先顯示包含收入的文字統計）
         const netIncome = incomeStats.total - statistics.total;
@@ -1143,6 +1168,44 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
           content: replyText,
           timestamp: new Date(),
         });
+
+        if (isCurrentMonthQuery) {
+          if (netIncome >= 0) {
+            try {
+              await lineService.pushMessage(userId, {
+                type: 'text',
+                text: `👏 本月淨收入 +$${netIncome}，保持得很棒！`,
+              });
+            } catch (error: any) {
+              logger.error('發送鼓勵訊息失敗', { error: error.message });
+            }
+          } else if (comparisonResult && comparisonResult.isIncreased && comparisonResult.percentage > 10) {
+            try {
+              openaiService
+                .generateSarcasticWarning(
+                  comparisonResult.currentMonth.total,
+                  comparisonResult.lastMonth.total,
+                  comparisonResult.difference,
+                  comparisonResult.percentage
+                )
+                .then((warningMessage) => {
+                  lineService
+                    .pushMessage(userId, {
+                      type: 'text',
+                      text: `⚠️ ${warningMessage}`,
+                    })
+                    .catch((err: any) => {
+                      logger.error('發送毒舌警告失敗', { error: err.message });
+                    });
+                })
+                .catch((err: any) => {
+                  logger.warn('產生毒舌警告失敗', { error: err.message });
+                });
+            } catch (error: any) {
+              logger.warn('比較月份花費失敗，跳過毒舌警告', { error: error.message });
+            }
+          }
+        }
         return;
       } else {
         // chat 或其他：使用 LLM 生成的 reply

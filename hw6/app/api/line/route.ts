@@ -96,6 +96,20 @@ const TIME_KEYWORDS = [
   '本年度',
 ];
 
+const KNOWN_EXPENSE_CATEGORIES = new Set([
+  '餐點',
+  '飲品',
+  '運動',
+  '生活用品',
+  '3C',
+  '美妝保養',
+  '網路訂閱',
+  '交通',
+  '娛樂',
+  '醫療',
+  '其他',
+]);
+
 function startOfDay(date: Date): Date {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -362,17 +376,25 @@ function parseUpdateCommand(
   index?: number;
   newDetail?: string;
   newAmount?: number;
+  newCategory?: string;
 } | null {
-  const match = message.trim().match(/^(修改|更改|更新)(.+)$/);
+  const normalizedMessage = message.trim();
+  const hasChangeVerb = /(修改|更改|更新|更正|改成|改為|變成|換成)/.test(normalizedMessage);
+  if (!hasChangeVerb) {
+    return null;
+  }
+
+  const match = normalizedMessage.match(/^(修改|更改|更新|更正)?(.*)$/);
   if (!match) {
     return null;
   }
+
   let content = match[2].trim();
   if (!content) {
     return null;
   }
 
-  const indexMatch = content.match(/第?(\d+)(?:筆|條)?/);
+  const indexMatch = content.match(/第?(\d+)(?:筆|條|點)?/);
   let index: number | undefined;
   if (indexMatch) {
     index = parseInt(indexMatch[1], 10);
@@ -386,16 +408,40 @@ function parseUpdateCommand(
     content = content.replace(amountMatch[1], '').trim();
   }
 
-  const keyword = content.trim();
-  if (!keyword && index === undefined && newAmount === undefined) {
+  let newDetail: string | undefined;
+  let newCategory: string | undefined;
+  const changeMatch = content.match(/(改成|改為|變成|換成)(.+)$/);
+  if (changeMatch) {
+    const newValue = changeMatch[2].trim();
+    const normalizedCategory = normalizeCategoryName(newValue);
+    if (normalizedCategory && KNOWN_EXPENSE_CATEGORIES.has(normalizedCategory)) {
+      newCategory = normalizedCategory;
+    } else {
+      newDetail = newValue;
+    }
+    content = content.replace(changeMatch[0], '').trim();
+  }
+
+  const keyword = content
+    .replace(/(要|把|項目|類別|分類|改|為|成)/g, '')
+    .trim();
+
+  if (
+    index === undefined &&
+    !keyword &&
+    newAmount === undefined &&
+    !newDetail &&
+    !newCategory
+  ) {
     return null;
   }
 
   return {
     keyword: keyword || undefined,
     index,
-    newDetail: content || undefined,
+    newDetail,
     newAmount,
+    newCategory,
   };
 }
 
@@ -762,7 +808,11 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
 
     // 判斷是否為修改指令（先檢查簡單格式，再使用 LLM）
     const simpleUpdateCommand = parseUpdateCommand(userMessage);
-    if (simpleUpdateCommand || /^(修改|更改|更新|更正)/.test(userMessage.trim())) {
+    if (
+      simpleUpdateCommand ||
+      /^(修改|更改|更新|更正)/.test(userMessage.trim()) ||
+      /(改成|改為|變成|換成)/.test(userMessage)
+    ) {
       const recentExpenses = await expenseService.getUserExpenses(userId, 50, 0);
       
       // 使用 LLM 解析更正指令
@@ -878,6 +928,9 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
 
       if (parsedUpdate.newCategory) {
         payload.category = parsedUpdate.newCategory === '食' ? '餐點' : parsedUpdate.newCategory;
+      } else if (simpleUpdateCommand?.newCategory) {
+        payload.category =
+          simpleUpdateCommand.newCategory === '食' ? '餐點' : simpleUpdateCommand.newCategory;
       }
 
       if (Object.keys(payload).length === 0) {

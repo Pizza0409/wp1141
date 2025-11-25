@@ -52,3 +52,4 @@ const Income = mongoose.models.Income || mongoose.model<IIncome>('Income', Incom
 
 export default Income;
 
+

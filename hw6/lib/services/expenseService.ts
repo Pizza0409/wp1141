@@ -130,6 +130,28 @@ export class ExpenseService {
   }
 
   /**
+   * 取得指定日期範圍的類別細項
+   */
+  async getExpensesByCategoryRange(
+    userId: string,
+    category: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<any[]> {
+    try {
+      logger.info('查詢期間類別細項', { userId, category, startDate, endDate });
+      return await expenseRepository.findByCategoryAndDateRange(userId, category, startDate, endDate);
+    } catch (error: any) {
+      logger.error('查詢期間類別細項失敗', {
+        error: error.message,
+        userId,
+        category,
+      });
+      throw error;
+    }
+  }
+
+  /**
    * 取得當日的記帳記錄
    */
   async getTodayExpenses(userId: string): Promise<any[]> {

@@ -37,3 +37,4 @@ const AdminUser: Model<IAdminUser> =
 
 export default AdminUser;
 
+

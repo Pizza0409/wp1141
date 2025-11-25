@@ -54,3 +54,4 @@ export function requireAuth(
   return authService.checkPermission(user.role, requiredRole);
 }
 
+

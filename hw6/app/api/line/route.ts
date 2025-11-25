@@ -53,36 +53,259 @@ function parseChineseNumber(text: string): number | null {
   return null;
 }
 
-function parseDetailRequest(message: string): { year: number; month: number; label: string } | null {
+type DetailQuery = {
+  category?: string;
+  startDate: Date;
+  endDate: Date;
+  label: string;
+};
+
+const TIME_KEYWORDS = [
+  '今天',
+  '今日',
+  '昨天',
+  '昨日',
+  '前天',
+  '這個月',
+  '這月',
+  '本月',
+  '上個月',
+  '上月',
+  '今年',
+  '本年',
+  '去年',
+  '前年',
+  '今年度',
+  '去年度',
+  '這一年',
+  '這年',
+  '本年度',
+];
+
+function startOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function formatDateLabel(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function createMonthRange(year: number, month: number): DetailQuery {
+  const startDate = startOfDay(new Date(year, month - 1, 1));
+  const endDate = endOfDay(new Date(year, month, 0));
+  return {
+    startDate,
+    endDate,
+    label: `${year}-${String(month).padStart(2, '0')}`,
+  };
+}
+
+function createYearRange(year: number, includeFuture: boolean = true): DetailQuery {
+  const startDate = startOfDay(new Date(year, 0, 1));
+  const endDate = includeFuture && year === new Date().getFullYear()
+    ? endOfDay(new Date())
+    : endOfDay(new Date(year, 11, 31));
+  return {
+    startDate,
+    endDate,
+    label: `${year}年`,
+  };
+}
+
+function createDayRange(year: number, month: number, day: number): DetailQuery {
+  const target = new Date(year, month - 1, day);
+  return {
+    startDate: startOfDay(target),
+    endDate: endOfDay(target),
+    label: formatDateLabel(target),
+  };
+}
+
+function extractCategoryKeyword(message: string): string | undefined {
+  const categoryRegex = /(?:查看|看|查詢|查)?\s*([^\s的]+?)?(?:類別)?(?:細項|細目|明細|列表|記錄)/;
+  const match = message.match(categoryRegex);
+  if (!match || !match[1]) {
+    return undefined;
+  }
+
+  let candidate = match[1]
+    .replace(new RegExp(TIME_KEYWORDS.join('|'), 'g'), '')
+    .replace(/\d{4}[\/\-年\.]\d{1,2}(?:[\/\-月\.]\d{1,2})?/g, '')
+    .replace(/\d{1,2}[\/\-]\d{1,2}/g, '')
+    .replace(/\d{1,2}月\d{0,2}日?/g, '')
+    .replace(/(類別|花費|費用|消費|支出|明細|細項)/g, '')
+    .replace(/[的、，,\s]+/g, '')
+    .trim();
+
+  if (!candidate || ['花費', '費用', '支出'].includes(candidate)) {
+    return undefined;
+  }
+
+  return candidate;
+}
+
+function normalizeCategoryName(raw?: string): string | undefined {
+  if (!raw) {
+    return undefined;
+  }
+
+  const candidate = raw.replace(/(類別|類)$/g, '').trim();
+  if (!candidate) {
+    return undefined;
+  }
+
+  const aliasMap: Record<string, string> = {
+    食: '餐點',
+    餐: '餐點',
+    餐飲: '餐點',
+    餐點: '餐點',
+    飲料: '飲品',
+    飲品: '飲品',
+    咖啡: '飲品',
+    手搖: '飲品',
+    交通: '交通',
+    通勤: '交通',
+    油錢: '交通',
+    加油: '交通',
+    生活用品: '生活用品',
+    生活: '生活用品',
+    娛樂: '娛樂',
+    運動: '運動',
+    醫療: '醫療',
+    '3C': '3C',
+    科技: '3C',
+    網路訂閱: '網路訂閱',
+    訂閱: '網路訂閱',
+    美妝保養: '美妝保養',
+    保養: '美妝保養',
+    其他: '其他',
+  };
+
+  for (const [key, value] of Object.entries(aliasMap)) {
+    if (candidate.includes(key)) {
+      return value;
+    }
+  }
+
+  return candidate;
+}
+
+function extractDateRange(message: string): DetailQuery | null {
+  const now = new Date();
+
+  if (/今天|今日/.test(message)) {
+    return createDayRange(now.getFullYear(), now.getMonth() + 1, now.getDate());
+  }
+
+  if (/昨天|昨日/.test(message)) {
+    const target = new Date(now);
+    target.setDate(now.getDate() - 1);
+    return createDayRange(target.getFullYear(), target.getMonth() + 1, target.getDate());
+  }
+
+  if (/前天/.test(message)) {
+    const target = new Date(now);
+    target.setDate(now.getDate() - 2);
+    return createDayRange(target.getFullYear(), target.getMonth() + 1, target.getDate());
+  }
+
+  let match = message.match(/(\d{4})[\/\-年\.](\d{1,2})[\/\-月\.](\d{1,2})(?:日|號)?/);
+  if (match) {
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    const day = parseInt(match[3], 10);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return createDayRange(year, month, day);
+    }
+  }
+
+  match = message.match(/(\d{1,2})月(\d{1,2})日?/);
+  if (match) {
+    const month = parseInt(match[1], 10);
+    const day = parseInt(match[2], 10);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return createDayRange(now.getFullYear(), month, day);
+    }
+  }
+
+  match = message.match(/(\d{4})[\/\-年\.](\d{1,2})/);
+  if (match) {
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    if (month >= 1 && month <= 12) {
+      return createMonthRange(year, month);
+    }
+  }
+
+  match = message.match(/(\d{1,2})月/);
+  if (match) {
+    const month = parseInt(match[1], 10);
+    if (month >= 1 && month <= 12) {
+      return createMonthRange(now.getFullYear(), month);
+    }
+  }
+
+  match = message.match(/(\d{4})年/);
+  if (match) {
+    const year = parseInt(match[1], 10);
+    return createYearRange(year, year === now.getFullYear());
+  }
+
+  if (/今年|本年|今年度|本年度|這一年|這年/.test(message)) {
+    return createYearRange(now.getFullYear(), true);
+  }
+
+  if (/去年|去年度/.test(message)) {
+    return createYearRange(now.getFullYear() - 1, false);
+  }
+
+  if (/前年/.test(message)) {
+    return createYearRange(now.getFullYear() - 2, false);
+  }
+
+  if (/上(個)?月/.test(message)) {
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return createMonthRange(lastMonth.getFullYear(), lastMonth.getMonth() + 1);
+  }
+
+  if (/這(個)?月|本月/.test(message)) {
+    return createMonthRange(now.getFullYear(), now.getMonth() + 1);
+  }
+
+  return null;
+}
+
+function parseExpenseDetailQuery(message: string): DetailQuery | null {
   const normalized = message.trim();
-  if (!/(細項|細目|明細|列表)/.test(normalized)) {
+  if (!/(細項|細目|明細|列表|記錄)/.test(normalized)) {
+    return null;
+  }
+
+  // 交給收入細項邏輯處理
+  if (/(收入)(的)?(細項|明細|列表|記錄)/.test(normalized) && !/(支出|花費|費用)/.test(normalized)) {
     return null;
   }
 
   const now = new Date();
-  let targetYear = now.getFullYear();
-  let targetMonth = now.getMonth() + 1;
+  const dateRange = extractDateRange(normalized) || createMonthRange(now.getFullYear(), now.getMonth() + 1);
+  const rawCategory = extractCategoryKeyword(normalized);
+  const category = normalizeCategoryName(rawCategory);
 
-  if (/上(個)?月/.test(normalized)) {
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    targetYear = lastMonth.getFullYear();
-    targetMonth = lastMonth.getMonth() + 1;
-  } else if (/這(個)?月|本月/.test(normalized)) {
-    // already default to current month
-  } else {
-    const match = normalized.match(/(\d{4})[\/\-年\.](\d{1,2})/);
-    if (match) {
-      const year = parseInt(match[1], 10);
-      const month = parseInt(match[2], 10);
-      if (year > 0 && month >= 1 && month <= 12) {
-        targetYear = year;
-        targetMonth = month;
-      }
-    }
-  }
-
-  const label = `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
-  return { year: targetYear, month: targetMonth, label };
+  return {
+    ...dateRange,
+    category,
+  };
 }
 
 function parseDeleteCommand(
@@ -353,19 +576,27 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
     });
 
     // 判斷是否為細項查詢
-    const detailRequest = parseDetailRequest(userMessage);
-    if (detailRequest) {
-      const expenses = await expenseService.getMonthlyExpenses(
-        userId,
-        detailRequest.year,
-        detailRequest.month
-      );
+    const detailQuery = parseExpenseDetailQuery(userMessage);
+    if (detailQuery) {
+      const expenses = detailQuery.category
+        ? await expenseService.getExpensesByCategoryRange(
+            userId,
+            detailQuery.category,
+            detailQuery.startDate,
+            detailQuery.endDate
+          )
+        : await expenseService.getExpensesByDateRange(userId, detailQuery.startDate, detailQuery.endDate);
+
+      const periodLabel = detailQuery.category
+        ? `${detailQuery.label} ${detailQuery.category}`
+        : detailQuery.label;
+
       await lineService.replyExpenseDetails(replyToken, expenses, {
-        periodLabel: detailRequest.label,
+        periodLabel,
       });
       await conversationRepository.addMessage(userId, {
         role: 'assistant',
-        content: `已回覆 ${detailRequest.label} 的花費細項`,
+        content: `已回覆 ${periodLabel} 的花費細項`,
         timestamp: new Date(),
       });
       return;
@@ -798,41 +1029,6 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
         // 判斷查詢類型
         const message = userMessage.toLowerCase();
         
-        // 檢查是否為類別細項查詢（如：餐點細項、餐點明細、查看餐點類別細項）
-        const categoryDetailMatch = userMessage.match(/(?:查看|看|查詢|查)(.+?)(?:的|類別)?(?:細項|明細|列表|記錄)/);
-        if (categoryDetailMatch) {
-          const categoryName = categoryDetailMatch[1].trim();
-          // 將"食"映射到"餐點"
-          const normalizedCategory = categoryName === '食' ? '餐點' : categoryName;
-          
-          const now = new Date();
-          const expenses = await expenseService.getExpensesByCategory(
-            userId,
-            normalizedCategory,
-            now.getFullYear(),
-            now.getMonth() + 1
-          );
-          
-          if (expenses.length === 0) {
-            await lineService.replyTextMessage(
-              replyToken,
-              `📝 本月「${normalizedCategory}」類別尚無記錄`
-            );
-          } else {
-            const total = expenses.reduce((sum, exp) => sum + exp.amount, 0);
-            await lineService.replyExpenseDetails(replyToken, expenses, {
-              periodLabel: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')} ${normalizedCategory}類別`,
-            });
-          }
-          
-          await conversationRepository.addMessage(userId, {
-            role: 'assistant',
-            content: `已回覆 ${normalizedCategory} 類別細項`,
-            timestamp: new Date(),
-          });
-          return;
-        }
-
         const incomeDetailRequest = /(收入)(的)?(細項|明細|列表|記錄)/.test(userMessage);
         if (incomeDetailRequest) {
           const now = new Date();

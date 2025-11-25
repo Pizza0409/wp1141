@@ -114,9 +114,11 @@ export class MessageParserService {
     const amount = amountMatch ? parseInt(amountMatch[1], 10) : 0;
 
     // 提取類別（簡單關鍵字匹配）
+    // 注意：所有與"食"相關的關鍵字都統一映射到"餐點"
     const categoryMap: Record<string, string> = {
       餐: '餐點',
       吃: '餐點',
+      食: '餐點', // 統一映射到餐點
       午餐: '餐點',
       晚餐: '餐點',
       早餐: '餐點',

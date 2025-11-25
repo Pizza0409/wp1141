@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import connectDB from '@/lib/db/mongodb';
 import messageParser from '@/lib/services/messageParser';
 import expenseService from '@/lib/services/expenseService';
+import incomeService from '@/lib/services/incomeService';
 import lineService from '@/lib/services/lineService';
 import openaiService from '@/lib/services/openaiService';
 import userRepository from '@/lib/repositories/userRepository';
@@ -198,11 +199,22 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
       } else if (action === 'current_month_stats') {
         // 本月統計
         const now = new Date();
-        const statistics = await expenseService.getMonthlyStatistics(
-          userId,
-          now.getFullYear(),
-          now.getMonth() + 1
-        );
+        const [statistics, incomeStats] = await Promise.all([
+          expenseService.getMonthlyStatistics(
+            userId,
+            now.getFullYear(),
+            now.getMonth() + 1
+          ),
+          incomeService.getMonthlyStatistics(
+            userId,
+            now.getFullYear(),
+            now.getMonth() + 1
+          ).catch(() => ({ month: '', total: 0, byCategory: {} })),
+        ]);
+        
+        const netIncome = incomeStats.total - statistics.total;
+        const statsText = `📊 ${statistics.month} 統計\n\n💰 收入：$${incomeStats.total}\n💸 支出：$${statistics.total}\n📈 淨收入：$${netIncome}\n\n`;
+        await lineService.replyTextMessage(replyToken, statsText);
         await lineService.replyStatisticsWithChart(replyToken, statistics);
         return;
       } else if (action === 'today_expenses') {
@@ -360,30 +372,86 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
       return;
     }
 
-    // 判斷是否為修改指令
-    const updateCommand = parseUpdateCommand(userMessage);
-    if (updateCommand) {
+    // 判斷是否為修改指令（先檢查簡單格式，再使用 LLM）
+    const simpleUpdateCommand = parseUpdateCommand(userMessage);
+    if (simpleUpdateCommand || /^(修改|更改|更新|更正)/.test(userMessage.trim())) {
       const recentExpenses = await expenseService.getUserExpenses(userId, 50, 0);
+      
+      // 使用 LLM 解析更正指令
+      const latestConversation = await conversationRepository.findLatestByUserId(userId);
+      const conversationHistory = latestConversation?.messages
+        .slice(-5)
+        .map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+        })) || [];
+
+      const parsedUpdate = await openaiService.parseUpdateCommand(
+        userMessage,
+        recentExpenses.map((exp) => ({
+          _id: exp._id.toString(),
+          category: exp.category,
+          detail: exp.detail,
+          amount: exp.amount,
+          timestamp: exp.timestamp,
+        })),
+        conversationHistory
+      );
+
+      // 如果有錯誤或多個候選，顯示候選列表
+      if (parsedUpdate.error || (parsedUpdate.candidates && parsedUpdate.candidates.length > 1)) {
+        if (parsedUpdate.candidates && parsedUpdate.candidates.length > 0) {
+          let message = '找到多筆可能的記錄，請選擇要修改的記錄：\n\n';
+          parsedUpdate.candidates.forEach((candidate: any) => {
+            const date = new Date(candidate.expense.timestamp);
+            const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
+            message += `${candidate.index}. ${candidate.expense.category} - ${candidate.expense.detail} $${candidate.expense.amount} (${dateStr})\n`;
+          });
+          message += '\n請回覆「修改第X筆 [新內容]」來指定要修改的記錄。';
+          await lineService.replyTextMessage(replyToken, message);
+        } else {
+          await lineService.replyTextMessage(
+            replyToken,
+            parsedUpdate.error || '找不到需要修改的記帳紀錄，請提供更明確的描述（例如：修改午餐 120 或 更正昨天的晚餐為100）。'
+          );
+        }
+        await conversationRepository.addMessage(userId, {
+          role: 'assistant',
+          content: '更正指令需要更多資訊',
+          timestamp: new Date(),
+        });
+        return;
+      }
+
+      // 確定目標記錄
       let target;
-      if (updateCommand.index !== undefined) {
-        const idx = updateCommand.index - 1;
+      if (parsedUpdate.targetId) {
+        target = recentExpenses.find((exp) => exp._id.toString() === parsedUpdate.targetId);
+      } else if (parsedUpdate.targetIndex) {
+        const idx = parsedUpdate.targetIndex - 1;
         if (idx >= 0 && idx < recentExpenses.length) {
           target = recentExpenses[idx];
         }
-      } else if (updateCommand.keyword) {
-        target = recentExpenses.find(
-          (expense) =>
-            expense.detail?.includes(updateCommand.keyword as string) ||
-            expense.category?.includes(updateCommand.keyword as string)
-        );
+      } else if (simpleUpdateCommand) {
+        // 降級到簡單解析
+        if (simpleUpdateCommand.index !== undefined) {
+          const idx = simpleUpdateCommand.index - 1;
+          if (idx >= 0 && idx < recentExpenses.length) {
+            target = recentExpenses[idx];
+          }
+        } else if (simpleUpdateCommand.keyword) {
+          target = recentExpenses.find(
+            (expense) =>
+              expense.detail?.includes(simpleUpdateCommand.keyword as string) ||
+              expense.category?.includes(simpleUpdateCommand.keyword as string)
+          );
+        }
       }
 
       if (!target) {
         await lineService.replyTextMessage(
           replyToken,
-          updateCommand.index
-            ? `找不到第 ${updateCommand.index} 筆記帳紀錄。請先輸入「花費細項」確認序號，再試一次。`
-            : '找不到需要修改的記帳紀錄，請提供更明確的描述（例如：修改午餐 120）。'
+          '找不到需要修改的記帳紀錄。請提供更明確的描述，例如：\n- "更正今天的晚餐為100"\n- "修改第3筆為150"\n- "更正昨天的午餐"'
         );
         await conversationRepository.addMessage(userId, {
           role: 'assistant',
@@ -393,17 +461,28 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
         return;
       }
 
+      // 構建更新 payload
       const payload: any = {};
-      if (updateCommand.newAmount !== undefined) {
-        payload.amount = updateCommand.newAmount;
+      if (parsedUpdate.newAmount !== undefined && parsedUpdate.newAmount !== null) {
+        payload.amount = parsedUpdate.newAmount;
+      } else if (simpleUpdateCommand?.newAmount !== undefined) {
+        payload.amount = simpleUpdateCommand.newAmount;
       }
-      if (updateCommand.newDetail) {
-        payload.detail = updateCommand.newDetail;
+      
+      if (parsedUpdate.newDetail) {
+        payload.detail = parsedUpdate.newDetail;
+      } else if (simpleUpdateCommand?.newDetail) {
+        payload.detail = simpleUpdateCommand.newDetail;
       }
+
+      if (parsedUpdate.newCategory) {
+        payload.category = parsedUpdate.newCategory;
+      }
+
       if (Object.keys(payload).length === 0) {
         await lineService.replyTextMessage(
           replyToken,
-          '請提供要修改的內容，例如「修改午餐 120」。'
+          '請提供要修改的內容，例如「修改午餐 120」或「更正今天的晚餐為100」。'
         );
         return;
       }
@@ -490,7 +569,7 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
 
       // 根據意圖處理
       if (parsed.intent === 'expense') {
-        // 記帳
+        // 記帳（支出）
         if (parsed.amount > 0) {
           await expenseService.createExpense({
             userId,
@@ -520,6 +599,37 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
           });
         }
         return;
+      } else if (parsed.intent === 'income') {
+        // 記帳（收入）
+        if (parsed.amount > 0) {
+          await incomeService.createIncome({
+            userId,
+            category: parsed.category || '其他收入',
+            detail: parsed.item || '未指定',
+            amount: parsed.amount,
+          });
+
+          // 使用 LLM 生成的 reply 或自訂確認訊息
+          const replyText = parsed.reply || `💰 已記錄收入：${parsed.category} - ${parsed.item} $${parsed.amount}`;
+          await lineService.replyTextMessage(replyToken, replyText);
+
+          await conversationRepository.addMessage(userId, {
+            role: 'assistant',
+            content: replyText,
+            timestamp: new Date(),
+          });
+        } else {
+          // 金額為 0，可能是格式錯誤
+          const errorReply = parsed.reply || '❌ 無法識別金額，請使用格式：收入 金額（如：薪水 30000）';
+          await lineService.replyTextMessage(replyToken, errorReply);
+          
+          await conversationRepository.addMessage(userId, {
+            role: 'assistant',
+            content: errorReply,
+            timestamp: new Date(),
+          });
+        }
+        return;
       } else if (parsed.intent === 'query') {
         // 查詢統計
         let statistics: any;
@@ -527,6 +637,41 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
 
         // 判斷查詢類型
         const message = userMessage.toLowerCase();
+        
+        // 檢查是否為類別細項查詢（如：餐點細項、餐點明細、查看餐點類別細項）
+        const categoryDetailMatch = userMessage.match(/(?:查看|看|查詢|查)(.+?)(?:的|類別)?(?:細項|明細|列表|記錄)/);
+        if (categoryDetailMatch) {
+          const categoryName = categoryDetailMatch[1].trim();
+          // 將"食"映射到"餐點"
+          const normalizedCategory = categoryName === '食' ? '餐點' : categoryName;
+          
+          const now = new Date();
+          const expenses = await expenseService.getExpensesByCategory(
+            userId,
+            normalizedCategory,
+            now.getFullYear(),
+            now.getMonth() + 1
+          );
+          
+          if (expenses.length === 0) {
+            await lineService.replyTextMessage(
+              replyToken,
+              `📝 本月「${normalizedCategory}」類別尚無記錄`
+            );
+          } else {
+            const total = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+            await lineService.replyExpenseDetails(replyToken, expenses, {
+              periodLabel: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')} ${normalizedCategory}類別`,
+            });
+          }
+          
+          await conversationRepository.addMessage(userId, {
+            role: 'assistant',
+            content: `已回覆 ${normalizedCategory} 類別細項`,
+            timestamp: new Date(),
+          });
+          return;
+        }
         
         if (message.includes('今天的記錄') || message.includes('今日記錄') || message.includes('今天')) {
           // 查詢今日記錄
@@ -556,17 +701,24 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
           const now = new Date();
           
           // 效能優化：並行查詢本月統計和月份比較
-          const [monthStats, comparison] = await Promise.all([
-            expenseService.getMonthlyStatistics(
+          const monthStats = await expenseService.getMonthlyStatistics(
+            userId,
+            now.getFullYear(),
+            now.getMonth() + 1
+          );
+          
+          const [incomeStats, comparison] = await Promise.all([
+            incomeService.getMonthlyStatistics(
               userId,
               now.getFullYear(),
               now.getMonth() + 1
-            ),
+            ).catch(() => ({ month: monthStats.month, total: 0, byCategory: {} })),
             expenseService.compareMonthlyExpenses(userId).catch(() => null),
           ]);
           
           statistics = monthStats;
-          replyText = `本月統計：總計 $${statistics.total}`;
+          const netIncome = incomeStats.total - statistics.total;
+          replyText = `本月統計：支出 $${statistics.total} | 收入 $${incomeStats.total} | 淨收入 $${netIncome}`;
 
           // 毒舌警告：比較本月與上月花費
           if (comparison && comparison.isIncreased && comparison.percentage > 10) {
@@ -594,7 +746,20 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
           }
         }
 
-        // 回覆統計結果（使用帶圓餅圖的版本）
+        // 取得收入統計（如果有的話）
+        const now = new Date();
+        const incomeStats = await incomeService.getMonthlyStatistics(
+          userId,
+          now.getFullYear(),
+          now.getMonth() + 1
+        ).catch(() => ({ month: statistics.month, total: 0, byCategory: {} }));
+
+        // 回覆統計結果（使用帶圓餅圖的版本，但先顯示包含收入的文字統計）
+        const netIncome = incomeStats.total - statistics.total;
+        const statsText = `📊 ${statistics.month} 統計\n\n💰 收入：$${incomeStats.total}\n💸 支出：$${statistics.total}\n📈 淨收入：$${netIncome}\n\n`;
+        await lineService.replyTextMessage(replyToken, statsText);
+        
+        // 然後顯示支出統計圖表
         await lineService.replyStatisticsWithChart(replyToken, statistics);
         
         await conversationRepository.addMessage(userId, {

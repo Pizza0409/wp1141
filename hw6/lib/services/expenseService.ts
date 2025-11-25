@@ -98,6 +98,38 @@ export class ExpenseService {
   }
 
   /**
+   * 取得指定類別在指定月份的詳細記錄
+   */
+  async getExpensesByCategory(
+    userId: string,
+    category: string,
+    year: number,
+    month: number
+  ): Promise<any[]> {
+    try {
+      const startDate = new Date(year, month - 1, 1);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+
+      logger.info('查詢類別細項', { userId, category, year, month });
+
+      return await expenseRepository.findByCategoryAndDateRange(
+        userId,
+        category,
+        startDate,
+        endDate
+      );
+    } catch (error: any) {
+      logger.error('查詢類別細項失敗', {
+        error: error.message,
+        userId,
+        category,
+      });
+      throw error;
+    }
+  }
+
+  /**
    * 取得當日的記帳記錄
    */
   async getTodayExpenses(userId: string): Promise<any[]> {
@@ -163,7 +195,9 @@ export class ExpenseService {
       const byCategory: Record<string, number> = {};
 
       expenses.forEach((exp) => {
-        byCategory[exp.category] = (byCategory[exp.category] || 0) + exp.amount;
+        // 將"食"類別合併到"餐點"
+        const normalizedCategory = exp.category === '食' ? '餐點' : exp.category;
+        byCategory[normalizedCategory] = (byCategory[normalizedCategory] || 0) + exp.amount;
       });
 
       const startStr = startDate.toISOString().split('T')[0];

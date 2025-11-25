@@ -7,7 +7,7 @@ export interface ParsedExpense {
 
 // LLM 解析結果類型（新格式）
 export interface ParsedMessage {
-  intent: 'expense' | 'chat' | 'query';
+  intent: 'expense' | 'income' | 'chat' | 'query';
   item: string;
   amount: number;
   category: string;
@@ -23,6 +23,21 @@ export interface ExpenseInput {
 }
 
 export interface MonthlyStatistics {
+  month: string; // YYYY-MM
+  total: number;
+  byCategory: Record<string, number>;
+}
+
+// 收入相關類型
+export interface IncomeInput {
+  userId: string;
+  category: string;
+  detail: string;
+  amount: number;
+  timestamp?: Date;
+}
+
+export interface MonthlyIncomeStatistics {
   month: string; // YYYY-MM
   total: number;
   byCategory: Record<string, number>;

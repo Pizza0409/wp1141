@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { ParsedExpense, ParsedMessage } from '@/types';
 import { z } from 'zod';
+import logger from './logger';
 
 // 延遲初始化 OpenAI 客戶端
 let openai: OpenAI | null = null;
@@ -27,7 +28,7 @@ const ParsedExpenseSchema = z.object({
 
 // 定義新的解析結果 Zod schema
 const ParsedMessageSchema = z.object({
-  intent: z.enum(['expense', 'chat', 'query']),
+  intent: z.enum(['expense', 'income', 'chat', 'query']),
   item: z.string(),
   amount: z.number().min(0),
   category: z.string(),
@@ -100,10 +101,10 @@ export class OpenAIService {
 JSON 格式如下：
 
 {
-  "intent": "expense" (記帳) 或 "chat" (閒聊/無法判斷) 或 "query" (查詢統計),
+  "intent": "expense" (支出記帳) 或 "income" (收入記帳) 或 "chat" (閒聊/無法判斷) 或 "query" (查詢統計),
   "item": "商品名稱 (字串)",
   "amount": 金額 (數字，若未提及則為 0),
-  "category": "推測類別 (從以下類別選擇：${categoriesList}，或使用「食/衣/住/行/育/樂/其他」)",
+  "category": "推測類別 (從以下類別選擇：${categoriesList}，注意：「食」相關內容統一使用「餐點」類別)",
   "reply": "給用戶的簡短回應 (字串，20-50字)"
 }
 
@@ -158,15 +159,24 @@ JSON 格式如下：
    - category: "餐點"
    - reply: "✅ 已記錄：餐點 - 午餐 $100（${currentDate}）"
 
+8. 如果使用者說「收入 5000」或「薪水 30000」或「收到 1000」，意圖是 "income"。
+   - intent: "income"
+   - item: "薪水" 或 "收入" 等
+   - amount: 5000
+   - category: "薪資" 或 "其他收入" 等
+   - reply: "💰 已記錄收入：薪資 - 薪水 $5000"
+
 # 類別對應規則
 
-- 食：餐點、飲品
+- 食：統一使用「餐點」類別（不要使用「食」作為類別名稱）
 - 衣：美妝保養
 - 住：生活用品
 - 行：交通
 - 育：運動、網路訂閱
 - 樂：娛樂
 - 其他：無法歸類的項目
+
+重要：當使用者提到「食」相關的內容時，請統一使用「餐點」類別，不要使用「食」作為類別。
 
 使用者訊息：${userMessage}${historyContext}
 
@@ -428,6 +438,140 @@ ${context ? `\n【上下文資訊】\n${context}` : ''}`;
       } else {
         return `本月花費比上個月多了 $${difference}（增加了 ${percentage.toFixed(1)}%），記得控制一下消費習慣喔～`;
       }
+    }
+  }
+
+  /**
+   * 解析更正指令，理解時間上下文和目標記錄
+   */
+  async parseUpdateCommand(
+    userMessage: string,
+    recentExpenses: Array<{
+      _id: string;
+      category: string;
+      detail: string;
+      amount: number;
+      timestamp: Date;
+    }>,
+    conversationHistory?: Array<{ role: string; content: string }>
+  ): Promise<{
+    targetId?: string;
+    targetIndex?: number;
+    candidates?: Array<{ index: number; expense: any }>;
+    newAmount?: number;
+    newDetail?: string;
+    newCategory?: string;
+    error?: string;
+  }> {
+    try {
+      const now = new Date();
+      const currentDate = now.toLocaleString('zh-TW', {
+        timeZone: 'Asia/Taipei',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        weekday: 'long',
+      });
+
+      // 構建最近記錄的上下文
+      const expensesContext = recentExpenses
+        .slice(0, 10)
+        .map((exp, idx) => {
+          const date = new Date(exp.timestamp);
+          const dateStr = date.toLocaleString('zh-TW', {
+            timeZone: 'Asia/Taipei',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          return `${idx + 1}. ${exp.category} - ${exp.detail} $${exp.amount} (${dateStr})`;
+        })
+        .join('\n');
+
+      const historyContext = conversationHistory
+        ? '\n\n對話歷史：\n' +
+          conversationHistory
+            .slice(-3)
+            .map((msg) => `${msg.role === 'user' ? '使用者' : '助手'}: ${msg.content}`)
+            .join('\n')
+        : '';
+
+      const prompt = `你是一個記帳助手，需要從使用者的更正指令中理解：
+1. 要修改哪一筆記錄（可能通過時間、類別、項目名稱等描述）
+2. 要修改成什麼內容（金額、項目名稱等）
+
+當前時間：${currentDate}
+
+最近10筆記錄：
+${expensesContext}${historyContext}
+
+使用者訊息：${userMessage}
+
+請分析使用者的更正指令，並回傳 JSON 格式：
+{
+  "targetIndex": 記錄序號（1-10，如果無法確定則為 null）,
+  "targetId": 記錄ID（如果確定是哪一筆，否則為 null）,
+  "candidates": [候選記錄的序號陣列，如果有多個可能的記錄],
+  "newAmount": 新金額（數字，如果未提及則為 null）,
+  "newDetail": 新項目名稱（字串，如果未提及則為 null）,
+  "newCategory": 新類別（字串，如果未提及則為 null）,
+  "error": 錯誤訊息（如果無法理解指令）
+}
+
+範例：
+- "更正一下今天的晚餐應該是100才對" → {"targetIndex": 1, "newAmount": 100, "newDetail": "晚餐"}
+- "昨天的晚餐要更正" → {"candidates": [1, 2], "error": "找到多筆可能的記錄，請選擇"}
+- "修改第3筆為150" → {"targetIndex": 3, "newAmount": 150}
+
+請嚴格按照 JSON 格式回覆，不要包含任何其他文字。`;
+
+      const response = await getOpenAIClient().chat.completions.create({
+        model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'system',
+            content:
+              '你是一個專業的記帳助手。從使用者的更正指令中提取要修改的記錄和修改內容。嚴格按照 JSON 格式回覆。',
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.2,
+        response_format: { type: 'json_object' },
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error('OpenAI 回應為空');
+      }
+
+      const parsed = JSON.parse(content);
+
+      // 如果有確定的 targetIndex，轉換為 targetId
+      if (parsed.targetIndex && !parsed.targetId) {
+        const idx = parsed.targetIndex - 1;
+        if (idx >= 0 && idx < recentExpenses.length) {
+          parsed.targetId = recentExpenses[idx]._id.toString();
+        }
+      }
+
+      // 如果有候選記錄，構建候選列表
+      if (parsed.candidates && parsed.candidates.length > 0) {
+        parsed.candidates = parsed.candidates.map((idx: number) => ({
+          index: idx,
+          expense: recentExpenses[idx - 1],
+        }));
+      }
+
+      return parsed;
+    } catch (error: any) {
+      logger.error('解析更正指令失敗', { error: error.message });
+      return { error: '無法理解更正指令，請使用格式：修改 [序號/項目名稱] [新金額/新內容]' };
     }
   }
 }

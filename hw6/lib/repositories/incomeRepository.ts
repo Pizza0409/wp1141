@@ -1,26 +1,26 @@
-import Expense, { IExpense } from '@/lib/models/expense';
+import Income, { IIncome } from '@/lib/models/income';
 
-export class ExpenseRepository {
+export class IncomeRepository {
   async create(data: {
     userId: string;
     category: string;
     detail: string;
     amount: number;
     timestamp?: Date;
-  }): Promise<IExpense> {
-    const expense = new Expense({
+  }): Promise<IIncome> {
+    const income = new Income({
       ...data,
       timestamp: data.timestamp || new Date(),
     });
-    return expense.save();
+    return income.save();
   }
 
   async findByUserId(
     userId: string,
     limit: number = 100,
     skip: number = 0
-  ): Promise<IExpense[]> {
-    return Expense.find({ userId })
+  ): Promise<IIncome[]> {
+    return Income.find({ userId })
       .sort({ timestamp: -1 })
       .limit(limit)
       .skip(skip)
@@ -31,33 +31,9 @@ export class ExpenseRepository {
     userId: string,
     startDate: Date,
     endDate: Date
-  ): Promise<IExpense[]> {
-    return Expense.find({
+  ): Promise<IIncome[]> {
+    return Income.find({
       userId,
-      timestamp: {
-        $gte: startDate,
-        $lte: endDate,
-      },
-    })
-      .sort({ timestamp: -1 })
-      .exec();
-  }
-
-  /**
-   * 按類別查詢指定日期範圍的記帳記錄
-   */
-  async findByCategoryAndDateRange(
-    userId: string,
-    category: string,
-    startDate: Date,
-    endDate: Date
-  ): Promise<IExpense[]> {
-    // 將"食"類別映射到"餐點"進行查詢
-    const normalizedCategory = category === '食' ? '餐點' : category;
-    
-    return Expense.find({
-      userId,
-      category: normalizedCategory,
       timestamp: {
         $gte: startDate,
         $lte: endDate,
@@ -75,7 +51,7 @@ export class ExpenseRepository {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
-    const expenses = await Expense.find({
+    const incomes = await Income.find({
       userId,
       timestamp: {
         $gte: startDate,
@@ -83,20 +59,18 @@ export class ExpenseRepository {
       },
     }).exec();
 
-    const total = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+    const total = incomes.reduce((sum, inc) => sum + inc.amount, 0);
     const byCategory: Record<string, number> = {};
 
-    expenses.forEach((exp) => {
-      // 將"食"類別合併到"餐點"
-      const normalizedCategory = exp.category === '食' ? '餐點' : exp.category;
-      byCategory[normalizedCategory] = (byCategory[normalizedCategory] || 0) + exp.amount;
+    incomes.forEach((inc) => {
+      byCategory[inc.category] = (byCategory[inc.category] || 0) + inc.amount;
     });
 
     return { total, byCategory };
   }
 
   async deleteById(id: string): Promise<boolean> {
-    const result = await Expense.deleteOne({ _id: id }).exec();
+    const result = await Income.deleteOne({ _id: id }).exec();
     return result.deletedCount > 0;
   }
 
@@ -108,19 +82,19 @@ export class ExpenseRepository {
       amount: number;
       timestamp: Date;
     }>
-  ): Promise<IExpense | null> {
-    return Expense.findByIdAndUpdate(id, data, { new: true }).exec();
+  ): Promise<IIncome | null> {
+    return Income.findByIdAndUpdate(id, data, { new: true }).exec();
   }
 
   /**
-   * 查詢所有使用者的記帳記錄（用於管理後台）
+   * 查詢所有使用者的收入記錄（用於管理後台）
    */
   async findAll(
     limit: number = 100,
     skip: number = 0,
     startDate?: Date,
     endDate?: Date
-  ): Promise<IExpense[]> {
+  ): Promise<IIncome[]> {
     const query: any = {};
     
     if (startDate && endDate) {
@@ -130,7 +104,7 @@ export class ExpenseRepository {
       };
     }
 
-    return Expense.find(query)
+    return Income.find(query)
       .sort({ timestamp: -1 })
       .limit(limit)
       .skip(skip)
@@ -138,6 +112,4 @@ export class ExpenseRepository {
   }
 }
 
-export default new ExpenseRepository();
-
-
+export default new IncomeRepository();

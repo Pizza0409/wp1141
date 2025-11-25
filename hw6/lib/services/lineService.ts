@@ -47,13 +47,20 @@ export class LineService {
   }
 
   /**
-   * 回傳統計訊息
+   * 回傳統計訊息（包含收入和支出）
    */
   async replyStatistics(
     replyToken: string,
-    statistics: MonthlyStatistics
+    statistics: MonthlyStatistics,
+    incomeStatistics?: { total: number; byCategory: Record<string, number> }
   ): Promise<void> {
-    let text = `📊 ${statistics.month} 統計\n\n總計：$${statistics.total}\n\n`;
+    const incomeTotal = incomeStatistics?.total || 0;
+    const netIncome = incomeTotal - statistics.total;
+    
+    let text = `📊 ${statistics.month} 統計\n\n`;
+    text += `💰 收入：$${incomeTotal}\n`;
+    text += `💸 支出：$${statistics.total}\n`;
+    text += `📈 淨收入：$${netIncome}\n\n`;
 
     // 按金額排序類別
     const sortedCategories = Object.entries(statistics.byCategory).sort(
@@ -61,7 +68,7 @@ export class LineService {
     );
 
     if (sortedCategories.length === 0) {
-      text += '本月尚無記錄';
+      text += '本月尚無支出記錄';
     } else {
       text += '各項目花費：\n';
       sortedCategories.forEach(([category, amount]) => {
@@ -618,21 +625,31 @@ export class LineService {
     return `📖 記帳機器人使用說明
 
 【基本功能】
-1. 記帳：直接輸入「項目 金額」
+1. 記帳（支出）：直接輸入「項目 金額」
    範例：午餐 100、咖啡 50
 
-2. 查詢統計：
+2. 記帳（收入）：輸入「收入 金額」或「薪水 金額」
+   範例：收入 5000、薪水 30000
+
+3. 查詢統計：
    • 「這個月花多少」- 查詢本月統計
    • 「上個月花多少」- 查詢上月統計
    • 「這半年花多少」- 查詢過去6個月
    • 「今年花多少」- 查詢今年統計
 
-3. 今日記錄：查看今天的記帳記錄
+4. 查詢類別細項：
+   • 「查看餐點細項」- 查看餐點類別的詳細記錄
+   • 「餐點明細」- 查看餐點類別的詳細記錄
+
+5. 更正記錄：
+   • 「更正今天的晚餐為100」
+   • 「修改第3筆為150」
 
 【使用技巧】
 • 可以說「午餐 100」或「今天午餐 100」
 • 系統會自動分類（餐點、交通、娛樂等）
 • 支援自然語言對話
+• 可以記錄收入和支出
 
 開始記帳吧！💪`;
   }

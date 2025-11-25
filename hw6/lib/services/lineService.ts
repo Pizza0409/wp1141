@@ -88,10 +88,17 @@ export class LineService {
   async replyStatisticsWithChart(
     replyToken: string,
     expenseStats: MonthlyStatistics,
-    incomeStats?: MonthlyIncomeStatistics
+    incomeStats?: MonthlyIncomeStatistics,
+    summaryText?: string
   ): Promise<void> {
     try {
       const messages: Message[] = [];
+      if (summaryText) {
+        messages.push({
+          type: 'text',
+          text: summaryText,
+        });
+      }
 
       const expenseFlex = this.buildCategoryFlexMessage(expenseStats, {
         icon: '📊',
@@ -99,8 +106,9 @@ export class LineService {
         accentColor: '#1DB446',
         emptyText: '本期間尚無支出記錄',
       });
+      const flexMessages: Message[] = [];
       if (expenseFlex) {
-        messages.push(expenseFlex);
+        flexMessages.push(expenseFlex);
       }
 
       if (incomeStats) {
@@ -111,23 +119,33 @@ export class LineService {
           emptyText: '本期間尚無收入記錄',
         });
         if (incomeFlex) {
-          messages.push(incomeFlex);
+          flexMessages.push(incomeFlex);
         }
       }
 
-      if (messages.length === 0) {
+      if (flexMessages.length === 0 && !summaryText) {
         await this.replyStatistics(replyToken, expenseStats, incomeStats);
         return;
       }
 
-      await client.replyMessage(replyToken, messages.length === 1 ? messages[0] : messages);
+      if (flexMessages.length === 0 && summaryText) {
+        await client.replyMessage(replyToken, messages[0]);
+        return;
+      }
+
+      const payload = [...messages, ...flexMessages];
+      await client.replyMessage(replyToken, payload.length === 1 ? payload[0] : payload);
       logger.info('成功回覆統計（帶原生樣式）', { replyToken });
     } catch (error: any) {
       logger.error('回覆統計（帶原生樣式）失敗，降級為文字訊息', {
         error: error.message,
         replyToken,
       });
-      await this.replyStatistics(replyToken, expenseStats, incomeStats);
+      if (summaryText) {
+        await this.replyTextMessage(replyToken, summaryText);
+      } else {
+        await this.replyStatistics(replyToken, expenseStats, incomeStats);
+      }
     }
   }
 

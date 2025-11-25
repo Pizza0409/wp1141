@@ -581,8 +581,7 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
           now.getFullYear(),
           now.getMonth() + 1
         );
-        await lineService.replyTextMessage(replyToken, statsText);
-        await lineService.replyStatisticsWithChart(replyToken, expenseStats, incomeStats);
+        await lineService.replyStatisticsWithChart(replyToken, expenseStats, incomeStats, statsText);
         return;
       } else if (action === 'today_expenses') {
         // 今日記錄
@@ -617,8 +616,7 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
         const month = parseInt(params.get('month') || '0', 10);
         if (year > 0 && month > 0) {
           const { statsText, expenseStats, incomeStats } = await buildMonthlyStatsSummary(userId, year, month);
-          await lineService.replyTextMessage(replyToken, statsText);
-          await lineService.replyStatisticsWithChart(replyToken, expenseStats, incomeStats);
+          await lineService.replyStatisticsWithChart(replyToken, expenseStats, incomeStats, statsText);
         }
         return;
       }
@@ -1011,8 +1009,7 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
           now.getFullYear(),
           now.getMonth() + 1
         );
-        await lineService.replyTextMessage(replyToken, statsText);
-        await lineService.replyStatisticsWithChart(replyToken, expenseStats, incomeStats);
+        await lineService.replyStatisticsWithChart(replyToken, expenseStats, incomeStats, statsText);
         await conversationRepository.addMessage(userId, {
           role: 'assistant',
           content: statsText,
@@ -1248,10 +1245,7 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
         // 回覆統計結果（使用帶圓餅圖的版本，但先顯示包含收入的文字統計）
         const netIncome = incomeStats.total - statistics.total;
         const statsText = `📊 ${statistics.month} 統計\n\n💰 收入：$${incomeStats.total}\n💸 支出：$${statistics.total}\n📈 淨收入：$${netIncome}\n\n`;
-        await lineService.replyTextMessage(replyToken, statsText);
-        
-        // 然後顯示支出/收入統計圖表
-        await lineService.replyStatisticsWithChart(replyToken, statistics, incomeStats);
+        await lineService.replyStatisticsWithChart(replyToken, statistics, incomeStats, statsText);
         
         await conversationRepository.addMessage(userId, {
           role: 'assistant',

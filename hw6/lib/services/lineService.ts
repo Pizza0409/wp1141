@@ -360,7 +360,113 @@ export class LineService {
   }
 
   /**
-   * 建立 Rich Menu
+   * 建立 Rich Menu（官方文件範例 - Compact Menu）
+   * 使用官方文件第一步的配置：1038x635，兩個區域（使用說明、查詢統計）
+   */
+  async createCompactRichMenu(): Promise<string> {
+    try {
+      const richMenu = {
+        size: {
+          width: 1038,
+          height: 635,
+        },
+        selected: true,
+        name: 'Custom Compact Menu',
+        chatBarText: '開啟選單',
+        areas: [
+          {
+            bounds: {
+              x: 0,
+              y: 0,
+              width: 519,
+              height: 635,
+            },
+            action: {
+              type: 'message' as const,
+              label: '使用說明',
+              text: '使用說明',
+            },
+          },
+          {
+            bounds: {
+              x: 519,
+              y: 0,
+              width: 519,
+              height: 635,
+            },
+            action: {
+              type: 'message' as const,
+              label: '查詢統計',
+              text: '查詢統計',
+            },
+          },
+        ],
+      };
+
+      const richMenuId = await client.createRichMenu(richMenu);
+      logger.info('成功建立 Compact Rich Menu', { richMenuId });
+      return richMenuId;
+    } catch (error: any) {
+      logger.error('建立 Compact Rich Menu 失敗', { error: error.message });
+      throw error;
+    }
+  }
+
+  /**
+   * 建立 Rich Menu（2500x843 尺寸）
+   * 用於匹配 2500x843 的圖片，兩個區域（使用說明、查詢統計）
+   */
+  async createWideRichMenu(): Promise<string> {
+    try {
+      const richMenu = {
+        size: {
+          width: 2500,
+          height: 843,
+        },
+        selected: true,
+        name: 'Wide Rich Menu',
+        chatBarText: '開啟選單',
+        areas: [
+          {
+            bounds: {
+              x: 0,
+              y: 0,
+              width: 1250,
+              height: 843,
+            },
+            action: {
+              type: 'message' as const,
+              label: '使用說明',
+              text: '使用說明',
+            },
+          },
+          {
+            bounds: {
+              x: 1250,
+              y: 0,
+              width: 1250,
+              height: 843,
+            },
+            action: {
+              type: 'message' as const,
+              label: '查詢統計',
+              text: '查詢統計',
+            },
+          },
+        ],
+      };
+
+      const richMenuId = await client.createRichMenu(richMenu);
+      logger.info('成功建立 Wide Rich Menu', { richMenuId });
+      return richMenuId;
+    } catch (error: any) {
+      logger.error('建立 Wide Rich Menu 失敗', { error: error.message });
+      throw error;
+    }
+  }
+
+  /**
+   * 建立 Rich Menu（完整版）
    */
   async createRichMenu(): Promise<string> {
     try {

@@ -423,6 +423,34 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
 
     // 處理訊息：使用新的統一解析方法
     try {
+      // 快速處理 Rich Menu 的 message 類型 action
+      if (userMessage.trim() === '使用說明') {
+        const helpText = lineService.getHelpMessage();
+        await lineService.replyTextMessage(replyToken, helpText);
+        await conversationRepository.addMessage(userId, {
+          role: 'assistant',
+          content: helpText,
+          timestamp: new Date(),
+        });
+        return;
+      }
+
+      if (userMessage.trim() === '查詢統計') {
+        const now = new Date();
+        const statistics = await expenseService.getMonthlyStatistics(
+          userId,
+          now.getFullYear(),
+          now.getMonth() + 1
+        );
+        await lineService.replyStatisticsWithChart(replyToken, statistics);
+        await conversationRepository.addMessage(userId, {
+          role: 'assistant',
+          content: `本月統計：總計 $${statistics.total}`,
+          timestamp: new Date(),
+        });
+        return;
+      }
+
       // 效能優化：並行取得類別和對話歷史
       const [categories, latestConversation] = await Promise.all([
         expenseService.getUserCategories(userId),

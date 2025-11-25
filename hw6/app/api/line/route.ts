@@ -445,30 +445,35 @@ function parseUpdateCommand(
   };
 }
 
-async function sendNetIncomeReaction(userId: string, periodLabel: string, netIncome: number): Promise<void> {
-  try {
-    if (netIncome >= 0) {
-      await lineService.pushMessage(userId, {
-        type: 'text',
-        text: `👏 ${periodLabel} 淨收入 +$${netIncome}，維持得很棒！`,
-      });
-    } else {
-      await lineService.pushMessage(userId, {
-        type: 'text',
-        text: `⚠️ ${periodLabel} 淨收入 -$${Math.abs(netIncome)}，再不節制就要吃土囉！`,
-      });
-    }
-  } catch (error: any) {
-    logger.error('推送淨收入回應失敗', { error: error.message, userId, netIncome });
-  }
+function formatAmount(amount: number): string {
+  return amount.toLocaleString('en-US');
 }
 
-async function replyMonthlySummary(
-  userId: string,
-  replyToken: string,
-  year: number,
-  month: number
-): Promise<void> {
+function getPositiveNetMessage(netIncome: number): string {
+  if (netIncome === 0) {
+    return '😌 本月收支打平，保持節奏就能繼續往前。';
+  }
+
+  const formatted = formatAmount(netIncome);
+  if (netIncome >= 50000) {
+    return `🚀 淨收入 +$${formatted}，錢包直接起飛！`;
+  }
+  if (netIncome >= 10000) {
+    return `👏 淨收入 +$${formatted}，穩穩往財富自由邁進！`;
+  }
+  return `👍 淨收入 +$${formatted}，每天都更接近目標！`;
+}
+
+function getNegativeNetMessage(netIncome: number): string {
+  const loss = Math.abs(netIncome);
+  const formatted = formatAmount(loss);
+  if (loss >= 5000) {
+    return `⚠️ 提醒：淨收入 -$${formatted}，鈔票正用光速逃離，快勒緊荷包！`;
+  }
+  return `🙃 淨收入 -$${formatted}，再這樣月底就只能喝西北風啦。`;
+}
+
+async function buildMonthlyStatsSummary(userId: string, year: number, month: number) {
   const [expenseStats, incomeStats] = await Promise.all([
     expenseService.getMonthlyStatistics(userId, year, month),
     incomeService
@@ -477,10 +482,16 @@ async function replyMonthlySummary(
   ]);
 
   const netIncome = incomeStats.total - expenseStats.total;
-  const statsText = `📊 ${expenseStats.month} 統計\n\n💰 收入：$${incomeStats.total}\n💸 支出：$${expenseStats.total}\n📈 淨收入：$${netIncome}\n\n`;
-  await lineService.replyTextMessage(replyToken, statsText);
-  await lineService.replyStatisticsWithChart(replyToken, expenseStats);
-  await sendNetIncomeReaction(userId, expenseStats.month, netIncome);
+  const moodMessage = netIncome >= 0 ? getPositiveNetMessage(netIncome) : getNegativeNetMessage(netIncome);
+
+  const statsText =
+    `📊 ${expenseStats.month} 統計\n\n` +
+    `💰 收入：$${formatAmount(incomeStats.total)}\n` +
+    `💸 支出：$${formatAmount(expenseStats.total)}\n` +
+    `📈 淨收入：$${formatAmount(netIncome)}\n\n` +
+    moodMessage;
+
+  return { statsText, expenseStats };
 }
 
 // 驗證簽名
@@ -563,8 +574,15 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
         await lineService.replyMonthSelector(replyToken);
         return;
       } else if (action === 'current_month_stats') {
+        // 本月統計
         const now = new Date();
-        await replyMonthlySummary(userId, replyToken, now.getFullYear(), now.getMonth() + 1);
+        const { statsText, expenseStats } = await buildMonthlyStatsSummary(
+          userId,
+          now.getFullYear(),
+          now.getMonth() + 1
+        );
+        await lineService.replyTextMessage(replyToken, statsText);
+        await lineService.replyStatisticsWithChart(replyToken, expenseStats);
         return;
       } else if (action === 'today_expenses') {
         // 今日記錄
@@ -598,7 +616,9 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
         const year = parseInt(params.get('year') || '0', 10);
         const month = parseInt(params.get('month') || '0', 10);
         if (year > 0 && month > 0) {
-          await replyMonthlySummary(userId, replyToken, year, month);
+          const { statsText, expenseStats } = await buildMonthlyStatsSummary(userId, year, month);
+          await lineService.replyTextMessage(replyToken, statsText);
+          await lineService.replyStatisticsWithChart(replyToken, expenseStats);
         }
         return;
       }
@@ -986,15 +1006,16 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
 
       if (userMessage.trim() === '查詢統計') {
         const now = new Date();
-        const statistics = await expenseService.getMonthlyStatistics(
+        const { statsText, expenseStats } = await buildMonthlyStatsSummary(
           userId,
           now.getFullYear(),
           now.getMonth() + 1
         );
-        await lineService.replyStatisticsWithChart(replyToken, statistics);
+        await lineService.replyTextMessage(replyToken, statsText);
+        await lineService.replyStatisticsWithChart(replyToken, expenseStats);
         await conversationRepository.addMessage(userId, {
           role: 'assistant',
-          content: `本月統計：總計 $${statistics.total}`,
+          content: statsText,
           timestamp: new Date(),
         });
         return;

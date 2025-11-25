@@ -43,6 +43,24 @@ export class IncomeRepository {
       .exec();
   }
 
+  async findByCategoryAndDateRange(
+    userId: string,
+    category: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<IIncome[]> {
+    return Income.find({
+      userId,
+      category,
+      timestamp: {
+        $gte: startDate,
+        $lte: endDate,
+      },
+    })
+      .sort({ timestamp: -1 })
+      .exec();
+  }
+
   async getMonthlyStatistics(
     userId: string,
     year: number,
@@ -113,3 +131,4 @@ export class IncomeRepository {
 }
 
 export default new IncomeRepository();
+

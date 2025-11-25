@@ -299,6 +299,69 @@ export class LineService {
   }
 
   /**
+   * 回覆收入細項列表
+   */
+  async replyIncomeDetails(
+    replyToken: string,
+    incomes: Array<{ category: string; detail: string; amount: number; timestamp: Date }>,
+    options: { periodLabel: string }
+  ): Promise<void> {
+    const { periodLabel } = options;
+
+    if (incomes.length === 0) {
+      await this.replyTextMessage(replyToken, `🧾 ${periodLabel} 尚無收入紀錄`);
+      return;
+    }
+
+    const total = incomes.reduce((sum, income) => sum + income.amount, 0);
+    let text = `🧾 ${periodLabel} 收入細項\n總筆數：${incomes.length} 筆｜總金額：$${total}\n\n`;
+
+    incomes.slice(0, 15).forEach((income, index) => {
+      const date = new Date(income.timestamp);
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const dateStr = `${month}/${day}`;
+      const note = income.detail || '未備註';
+      text += `${index + 1}. ${dateStr}｜${income.category}\n   $${income.amount}｜${note}\n`;
+    });
+
+    if (incomes.length > 15) {
+      text += `\n… 還有 ${incomes.length - 15} 筆記錄`;
+    }
+
+    await this.replyTextMessage(replyToken, text);
+  }
+
+  /**
+   * 建立收入確認訊息
+   */
+  buildIncomeReply(category: string | undefined, detail: string | undefined, amount: number): string {
+    const normalizedCategory = (category && category.trim()) || '其他收入';
+    const normalizedDetail = detail?.trim();
+
+    let displayLabel: string;
+    if (
+      !normalizedDetail ||
+      normalizedDetail === '收入' ||
+      normalizedDetail === normalizedCategory ||
+      normalizedDetail.includes(normalizedCategory) ||
+      normalizedCategory.includes(normalizedDetail)
+    ) {
+      displayLabel = normalizedCategory;
+    } else {
+      displayLabel = `${normalizedCategory} - ${normalizedDetail}`;
+    }
+
+    let message = `💰 已記錄收入：${displayLabel} $${amount}`;
+    if (amount >= 100000) {
+      message += '\n🎉 大筆進帳！記得好好規劃運用～';
+    } else if (amount >= 10000) {
+      message += '\n📈 收入進帳，離目標更近一步！';
+    }
+    return message;
+  }
+
+  /**
    * 回覆錯誤訊息
    */
   async replyError(

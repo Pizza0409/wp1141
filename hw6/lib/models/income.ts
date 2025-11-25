@@ -51,3 +51,4 @@ IncomeSchema.index({ userId: 1, category: 1, timestamp: -1 });
 const Income = mongoose.models.Income || mongoose.model<IIncome>('Income', IncomeSchema);
 
 export default Income;
+

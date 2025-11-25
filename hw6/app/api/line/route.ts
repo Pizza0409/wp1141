@@ -18,6 +18,41 @@ export const dynamic = 'force-dynamic';
 const channelSecret = process.env.LINE_CHANNEL_SECRET || '';
 const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 
+function parseChineseNumber(text: string): number | null {
+  const digitMap: Record<string, number> = {
+    零: 0,
+    一: 1,
+    二: 2,
+    兩: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+    九: 9,
+  };
+  if (!text) {
+    return null;
+  }
+  if (text === '十') {
+    return 10;
+  }
+  if (text.includes('十')) {
+    const [left, right] = text.split('十');
+    const tens = left ? digitMap[left] ?? null : 1;
+    if (tens === null) {
+      return null;
+    }
+    const ones = right ? digitMap[right] ?? 0 : 0;
+    return tens * 10 + ones;
+  }
+  if (text.length === 1 && digitMap[text] !== undefined) {
+    return digitMap[text];
+  }
+  return null;
+}
+
 function parseDetailRequest(message: string): { year: number; month: number; label: string } | null {
   const normalized = message.trim();
   if (!/(細項|細目|明細|列表)/.test(normalized)) {
@@ -62,11 +97,21 @@ function parseDeleteCommand(
     return null;
   }
 
-  const indexMatch = content.match(/第?(\d+)(?:筆|條)?/);
+  // Arabic numerals
+  const indexMatch = content.match(/第?(\d+)(?:筆|條|點)?/);
   if (indexMatch) {
     const index = parseInt(indexMatch[1], 10);
     if (index > 0) {
       return { index };
+    }
+  }
+
+  // Chinese numerals (例如：第一點、第二筆)
+  const chineseMatch = content.match(/第([一二三四五六七八九十兩]+)(?:筆|條|點)?/);
+  if (chineseMatch) {
+    const parsed = parseChineseNumber(chineseMatch[1]);
+    if (parsed && parsed > 0) {
+      return { index: parsed };
     }
   }
 
@@ -337,11 +382,109 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
           target = recentExpenses[idx];
         }
       } else if (deleteCommand.keyword) {
-        target = recentExpenses.find(
-          (expense) =>
-            expense.detail?.includes(deleteCommand.keyword as string) ||
-            expense.category?.includes(deleteCommand.keyword as string)
-        );
+        const keyword = deleteCommand.keyword.replace(/\|/g, ' ').trim();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        const dateMatch = keyword.match(/(\d{1,2})[\/\-](\d{1,2})/);
+        const zhDateMatch = keyword.match(/(\d{1,2})月(\d{1,2})日?/);
+        let specificDate: Date | undefined;
+        if (dateMatch) {
+          const month = parseInt(dateMatch[1], 10);
+          const day = parseInt(dateMatch[2], 10);
+          specificDate = new Date(today.getFullYear(), month - 1, day);
+        } else if (zhDateMatch) {
+          const month = parseInt(zhDateMatch[1], 10);
+          const day = parseInt(zhDateMatch[2], 10);
+          specificDate = new Date(today.getFullYear(), month - 1, day);
+        }
+
+        const wantsToday = /今天/.test(keyword);
+        const wantsYesterday = /(昨天|昨日)/.test(keyword);
+
+        const normalizeCategory = (cat: string) => (cat === '食' ? '餐點' : cat);
+        const availableCategories = Array.from(new Set(recentExpenses.map((exp) => exp.category)));
+        const knownCategories = ['餐點', '飲品', '交通', '生活用品', '娛樂', '醫療', '3C', '其他'];
+        let categoryKeyword: string | undefined;
+        [...availableCategories, ...knownCategories].forEach((cat) => {
+          if (!cat) {
+            return;
+          }
+          if (keyword.includes(cat)) {
+            categoryKeyword = normalizeCategory(cat);
+          }
+        });
+        if (!categoryKeyword && keyword.includes('食')) {
+          categoryKeyword = '餐點';
+        }
+
+        let detailKeyword: string | undefined = keyword
+          .replace(/今天|昨天|昨日|刪除|的/g, '')
+          .replace(/第[一二三四五六七八九十兩\d]+(?:筆|條|點)?/g, '')
+          .replace(/(\d{1,2})[\/\-](\d{1,2})/g, '')
+          .replace(/(\d{1,2})月(\d{1,2})日?/g, '')
+          .trim();
+        if (categoryKeyword && detailKeyword) {
+          detailKeyword = detailKeyword.replace(new RegExp(categoryKeyword, 'g'), '').trim();
+        }
+        if (detailKeyword === '') {
+          detailKeyword = undefined;
+        }
+
+        const isSameDay = (source: Date, targetDate: Date) => {
+          const d = new Date(source);
+          d.setHours(0, 0, 0, 0);
+          return d.getTime() === targetDate.getTime();
+        };
+
+        let filtered = recentExpenses.filter((expense) => {
+          let match = true;
+          if (specificDate) {
+            match = match && isSameDay(expense.timestamp, specificDate);
+          } else if (wantsToday) {
+            match = match && isSameDay(expense.timestamp, today);
+          } else if (wantsYesterday) {
+            match = match && isSameDay(expense.timestamp, yesterday);
+          }
+
+          if (categoryKeyword) {
+            match = match && expense.category === categoryKeyword;
+          }
+
+          if (detailKeyword) {
+            const normalizedDetail = expense.detail?.replace(/\s+/g, '') || '';
+            const normalizedKeyword = detailKeyword.replace(/\s+/g, '');
+            match =
+              match &&
+              (normalizedDetail.includes(normalizedKeyword) ||
+                expense.category?.includes(normalizedKeyword));
+          }
+
+          return match;
+        });
+
+        if (filtered.length === 1) {
+          target = filtered[0];
+        } else if (filtered.length > 1) {
+          let message = '找到多筆符合條件的記錄，請指定要刪除的編號：\n\n';
+          filtered.slice(0, 5).forEach((expense) => {
+            const idx =
+              recentExpenses.findIndex((item) => item._id.toString() === expense._id.toString()) + 1;
+            const date = new Date(expense.timestamp);
+            const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
+            message += `${idx}. ${expense.category} - ${expense.detail} $${expense.amount} (${dateStr})\n`;
+          });
+          message += '\n請輸入「刪除第X筆」再試一次。';
+          await lineService.replyTextMessage(replyToken, message);
+          await conversationRepository.addMessage(userId, {
+            role: 'assistant',
+            content: '刪除失敗：需使用指定的序號',
+            timestamp: new Date(),
+          });
+          return;
+        }
       }
 
       if (!target) {
@@ -454,6 +597,13 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
         }
       }
 
+      if (!target && candidateIndexes.length === 1) {
+        const idx = candidateIndexes[0] - 1;
+        if (idx >= 0 && idx < recentExpenses.length) {
+          target = recentExpenses[idx];
+        }
+      }
+
       if (!target) {
         await lineService.replyTextMessage(
           replyToken,
@@ -482,7 +632,7 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
       }
 
       if (parsedUpdate.newCategory) {
-        payload.category = parsedUpdate.newCategory;
+        payload.category = parsedUpdate.newCategory === '食' ? '餐點' : parsedUpdate.newCategory;
       }
 
       if (Object.keys(payload).length === 0) {
@@ -618,19 +768,9 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
             amount: parsed.amount,
           });
 
-          // 改進回覆格式：如果 category 和 item 重複或類似，簡化顯示
-          let replyText = parsed.reply;
-          if (!replyText) {
-            // 如果 item 是"收入"且 category 是"其他收入"，簡化顯示
-            if (incomeDetail === '收入' && incomeCategory === '其他收入') {
-              replyText = `💰 已記錄收入：$${parsed.amount}`;
-            } else if (incomeDetail === incomeCategory || incomeDetail.includes(incomeCategory) || incomeCategory.includes(incomeDetail)) {
-              // 如果 item 和 category 重複，只顯示一個
-              replyText = `💰 已記錄收入：${incomeCategory} $${parsed.amount}`;
-            } else {
-              replyText = `💰 已記錄收入：${incomeCategory} - ${incomeDetail} $${parsed.amount}`;
-            }
-          }
+          // 使用 LLM 生成的 reply 或友善提示
+          const replyText =
+            parsed.reply || lineService.buildIncomeReply(incomeCategory, incomeDetail, parsed.amount);
           await lineService.replyTextMessage(replyToken, replyText);
 
           await conversationRepository.addMessage(userId, {
@@ -688,6 +828,26 @@ async function handleEvent(event: WebhookEvent): Promise<void> {
           await conversationRepository.addMessage(userId, {
             role: 'assistant',
             content: `已回覆 ${normalizedCategory} 類別細項`,
+            timestamp: new Date(),
+          });
+          return;
+        }
+
+        const incomeDetailRequest = /(收入)(的)?(細項|明細|列表|記錄)/.test(userMessage);
+        if (incomeDetailRequest) {
+          const now = new Date();
+          const incomes = await incomeService.getMonthlyIncomes(
+            userId,
+            now.getFullYear(),
+            now.getMonth() + 1
+          );
+          await lineService.replyIncomeDetails(replyToken, incomes, {
+            periodLabel: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
+          });
+
+          await conversationRepository.addMessage(userId, {
+            role: 'assistant',
+            content: `已回覆本月收入細項，共 ${incomes.length} 筆`,
             timestamp: new Date(),
           });
           return;

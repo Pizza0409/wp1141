@@ -113,6 +113,38 @@ export class IncomeService {
   }
 
   /**
+   * 取得指定類別在指定月份的收入紀錄
+   */
+  async getIncomesByCategory(
+    userId: string,
+    category: string,
+    year: number,
+    month: number
+  ): Promise<any[]> {
+    try {
+      const startDate = new Date(year, month - 1, 1);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+
+      logger.info('查詢收入類別細項', { userId, category, year, month });
+
+      return await incomeRepository.findByCategoryAndDateRange(
+        userId,
+        category,
+        startDate,
+        endDate
+      );
+    } catch (error: any) {
+      logger.error('查詢收入類別細項失敗', {
+        error: error.message,
+        userId,
+        category,
+      });
+      throw error;
+    }
+  }
+
+  /**
    * 取得當日的收入記錄
    */
   async getTodayIncomes(userId: string): Promise<any[]> {
@@ -245,3 +277,4 @@ export class IncomeService {
 }
 
 export default new IncomeService();
+

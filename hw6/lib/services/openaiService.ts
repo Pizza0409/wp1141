@@ -331,7 +331,7 @@ ${historyContext}`;
     conversationHistory?: Array<{ role: string; content: string }>
   ) {
     // 1. 準備最近紀錄的清單字串
-    const expensesList = recentExpenses.slice(0, 5).map((e, i) => {
+    const expensesList = recentExpenses.slice(0, 10).map((e, i) => {
         const dateStr = new Date(e.timestamp).toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' });
         return `${i + 1}. [${e.category}] ${e.detail} $${e.amount} (${dateStr})`;
     }).join('\n');
@@ -346,7 +346,7 @@ ${historyContext}`;
 
     請分析指令並回傳 JSON：
     {
-      "targetIndex": 數字 (1-5, 對應清單序號, 若無法確定則 null),
+      "targetIndex": 數字 (1-10, 對應清單序號, 若無法確定則 null),
       "targetId": 字串 (對應的紀錄ID, 此欄位由後端處理，AI回傳 null 即可),
       "newAmount": 數字 (若無修改則 null),
       "newDetail": 字串 (新項目名稱, 若無修改則 null),

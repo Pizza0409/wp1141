@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import lineService from '@/lib/services/lineService';
 import logger from '@/lib/services/logger';
+import sharp from 'sharp';
 
 // 設定 runtime 為 nodejs
 export const runtime = 'nodejs';
@@ -60,17 +61,47 @@ export async function POST(request: NextRequest): Promise<Response> {
         if (imageFile) {
           logger.info('步驟 2: 上傳 Rich Menu 圖片', { 
             fileName: imageFile.name,
-            size: imageFile.size 
+            size: imageFile.size,
+            type: imageFile.type,
           });
 
           const arrayBuffer = await imageFile.arrayBuffer();
-          const imageBuffer = Buffer.from(arrayBuffer);
+          const originalBuffer = Buffer.from(arrayBuffer);
 
-          await lineService.setRichMenuImage(richMenuId, imageBuffer);
+          // 轉換為 JPEG（LINE API 要求）
+          let processedImage: Buffer;
+          try {
+            const image = sharp(originalBuffer);
+            const metadata = await image.metadata();
+            
+            logger.info('圖片資訊', {
+              width: metadata.width,
+              height: metadata.height,
+              format: metadata.format,
+            });
+
+            processedImage = await image
+              .jpeg({ quality: 90 })
+              .toBuffer();
+
+            logger.info('圖片已轉換為 JPEG', {
+              originalSize: originalBuffer.length,
+              processedSize: processedImage.length,
+            });
+          } catch (imageError: any) {
+            logger.error('圖片處理失敗', { error: imageError.message });
+            throw new Error(`圖片處理失敗: ${imageError.message}`);
+          }
+
+          await lineService.setRichMenuImage(richMenuId, processedImage);
           logger.info('Rich Menu 圖片上傳成功', { richMenuId });
           
           result.steps.step2_upload = '成功';
-          result.imageSize = imageBuffer.length;
+          result.imageSize = {
+            original: originalBuffer.length,
+            processed: processedImage.length,
+            format: 'jpeg',
+          };
 
           // 步驟 3: 設為預設 Rich Menu（只有上傳圖片後才能設置）
           logger.info('步驟 3: 設為預設 Rich Menu');

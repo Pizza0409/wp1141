@@ -39,6 +39,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
     let richMenuId: string;
     let imageMetadata: { width?: number; height?: number; format?: string } | null = null;
+    let originalImageBuffer: Buffer | null = null; // 保存圖片 buffer，避免重複讀取
     const result: any = {
       steps: {
         step1_create: '未執行',
@@ -47,7 +48,8 @@ export async function POST(request: NextRequest): Promise<Response> {
       },
     };
 
-    // 步驟 2: 先讀取圖片（如果提供），以決定 Rich Menu 尺寸
+    // 步驟 0: 先讀取圖片（如果提供），以決定 Rich Menu 尺寸
+    // 注意：request body 只能讀取一次，所以要在這裡一次讀取並保存
     const contentType = request.headers.get('content-type');
     if (contentType && contentType.includes('multipart/form-data')) {
       try {
@@ -62,11 +64,11 @@ export async function POST(request: NextRequest): Promise<Response> {
           });
 
           const arrayBuffer = await imageFile.arrayBuffer();
-          const originalBuffer = Buffer.from(arrayBuffer);
+          originalImageBuffer = Buffer.from(arrayBuffer);
 
           // 讀取圖片尺寸
           try {
-            const image = sharp(originalBuffer);
+            const image = sharp(originalImageBuffer);
             imageMetadata = await image.metadata();
             
             logger.info('圖片資訊', {
@@ -146,74 +148,65 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
 
     // 步驟 2: 上傳圖片（如果提供）
-    if (contentType && contentType.includes('multipart/form-data')) {
+    // 使用之前保存的 originalImageBuffer，避免重複讀取 request body
+    if (originalImageBuffer) {
       try {
-        const formData = await request.formData();
-        const imageFile = formData.get('image') as File;
+        logger.info('步驟 2: 上傳 Rich Menu 圖片', { 
+          size: originalImageBuffer.length,
+        });
 
-        if (imageFile) {
-          logger.info('步驟 2: 上傳 Rich Menu 圖片', { 
-            fileName: imageFile.name,
-            size: imageFile.size,
-            type: imageFile.type,
-          });
-
-          const arrayBuffer = await imageFile.arrayBuffer();
-          const originalBuffer = Buffer.from(arrayBuffer);
-
-          // 轉換為 JPEG（LINE API 要求）
-          let processedImage: Buffer;
-          try {
-            const image = sharp(originalBuffer);
-            const metadata = await image.metadata();
-            
-            // 驗證尺寸是否匹配
-            if (metadata.width && metadata.height) {
-              const menuSize = result.menuType?.match(/\((\d+)x(\d+)\)/);
-              if (menuSize) {
-                const expectedWidth = parseInt(menuSize[1]);
-                const expectedHeight = parseInt(menuSize[2]);
-                if (metadata.width !== expectedWidth || metadata.height !== expectedHeight) {
-                  logger.warn('圖片尺寸與 Rich Menu 尺寸不匹配', {
-                    imageSize: `${metadata.width}x${metadata.height}`,
-                    menuSize: `${expectedWidth}x${expectedHeight}`,
-                  });
-                  result.warning = `圖片尺寸 (${metadata.width}x${metadata.height}) 與 Rich Menu 尺寸 (${expectedWidth}x${expectedHeight}) 不匹配，可能無法正常顯示。`;
-                }
+        // 轉換為 JPEG（LINE API 要求）
+        let processedImage: Buffer;
+        try {
+          const image = sharp(originalImageBuffer);
+          const metadata = await image.metadata();
+          
+          // 驗證尺寸是否匹配
+          if (metadata.width && metadata.height) {
+            const menuSize = result.menuType?.match(/\((\d+)x(\d+)\)/);
+            if (menuSize) {
+              const expectedWidth = parseInt(menuSize[1]);
+              const expectedHeight = parseInt(menuSize[2]);
+              if (metadata.width !== expectedWidth || metadata.height !== expectedHeight) {
+                logger.warn('圖片尺寸與 Rich Menu 尺寸不匹配', {
+                  imageSize: `${metadata.width}x${metadata.height}`,
+                  menuSize: `${expectedWidth}x${expectedHeight}`,
+                });
+                result.warning = `圖片尺寸 (${metadata.width}x${metadata.height}) 與 Rich Menu 尺寸 (${expectedWidth}x${expectedHeight}) 不匹配，可能無法正常顯示。`;
               }
             }
-
-            processedImage = await image
-              .jpeg({ quality: 90 })
-              .toBuffer();
-
-            logger.info('圖片已轉換為 JPEG', {
-              originalSize: originalBuffer.length,
-              processedSize: processedImage.length,
-            });
-          } catch (imageError: any) {
-            logger.error('圖片處理失敗', { error: imageError.message });
-            throw new Error(`圖片處理失敗: ${imageError.message}`);
           }
 
-          await lineService.setRichMenuImage(richMenuId, processedImage);
-          logger.info('Rich Menu 圖片上傳成功', { richMenuId });
-          
-          result.steps.step2_upload = '成功';
-          result.imageSize = {
-            original: originalBuffer.length,
-            processed: processedImage.length,
-            format: 'jpeg',
-            dimensions: imageMetadata ? `${imageMetadata.width}x${imageMetadata.height}` : undefined,
-          };
+          processedImage = await image
+            .jpeg({ quality: 90 })
+            .toBuffer();
 
-          // 步驟 3: 設為預設 Rich Menu（只有上傳圖片後才能設置）
-          logger.info('步驟 3: 設為預設 Rich Menu');
-          await lineService.setDefaultRichMenu(richMenuId);
-          logger.info('Rich Menu 已設為預設選單', { richMenuId });
-          
-          result.steps.step3_setDefault = '成功';
+          logger.info('圖片已轉換為 JPEG', {
+            originalSize: originalImageBuffer.length,
+            processedSize: processedImage.length,
+          });
+        } catch (imageError: any) {
+          logger.error('圖片處理失敗', { error: imageError.message });
+          throw new Error(`圖片處理失敗: ${imageError.message}`);
         }
+
+        await lineService.setRichMenuImage(richMenuId, processedImage);
+        logger.info('Rich Menu 圖片上傳成功', { richMenuId });
+        
+        result.steps.step2_upload = '成功';
+        result.imageSize = {
+          original: originalImageBuffer.length,
+          processed: processedImage.length,
+          format: 'jpeg',
+          dimensions: imageMetadata ? `${imageMetadata.width}x${imageMetadata.height}` : undefined,
+        };
+
+        // 步驟 3: 設為預設 Rich Menu（只有上傳圖片後才能設置）
+        logger.info('步驟 3: 設為預設 Rich Menu');
+        await lineService.setDefaultRichMenu(richMenuId);
+        logger.info('Rich Menu 已設為預設選單', { richMenuId });
+        
+        result.steps.step3_setDefault = '成功';
       } catch (uploadError: any) {
         logger.error('上傳圖片失敗', { error: uploadError.message });
         result.steps.step2_upload = `失敗: ${uploadError.message}`;

@@ -37,22 +37,115 @@ export async function POST(request: NextRequest): Promise<Response> {
       );
     }
 
-    // 步驟 1: 創建 Rich Menu
-    logger.info('步驟 1: 創建 Rich Menu');
-    const richMenuId = await lineService.createCompactRichMenu();
-    logger.info('Rich Menu 創建成功', { richMenuId });
-
+    let richMenuId: string;
+    let imageMetadata: { width?: number; height?: number; format?: string } | null = null;
     const result: any = {
-      richMenuId,
       steps: {
-        step1_create: '成功',
+        step1_create: '未執行',
         step2_upload: '跳過（未提供圖片）',
         step3_setDefault: '未執行（需要先上傳圖片）',
       },
     };
 
-    // 步驟 2: 上傳圖片（如果提供）
+    // 步驟 2: 先讀取圖片（如果提供），以決定 Rich Menu 尺寸
     const contentType = request.headers.get('content-type');
+    if (contentType && contentType.includes('multipart/form-data')) {
+      try {
+        const formData = await request.formData();
+        const imageFile = formData.get('image') as File;
+
+        if (imageFile) {
+          logger.info('步驟 0: 讀取圖片資訊', { 
+            fileName: imageFile.name,
+            size: imageFile.size,
+            type: imageFile.type,
+          });
+
+          const arrayBuffer = await imageFile.arrayBuffer();
+          const originalBuffer = Buffer.from(arrayBuffer);
+
+          // 讀取圖片尺寸
+          try {
+            const image = sharp(originalBuffer);
+            imageMetadata = await image.metadata();
+            
+            logger.info('圖片資訊', {
+              width: imageMetadata.width,
+              height: imageMetadata.height,
+              format: imageMetadata.format,
+            });
+          } catch (imageError: any) {
+            logger.error('讀取圖片資訊失敗', { error: imageError.message });
+            throw new Error(`讀取圖片資訊失敗: ${imageError.message}`);
+          }
+        }
+      } catch (readError: any) {
+        logger.error('讀取圖片失敗', { error: readError.message });
+        return NextResponse.json(
+          {
+            success: false,
+            error: readError.message || '讀取圖片失敗',
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    // 步驟 1: 根據圖片尺寸創建對應的 Rich Menu
+    logger.info('步驟 1: 創建 Rich Menu');
+    try {
+      if (imageMetadata && imageMetadata.width && imageMetadata.height) {
+        // 根據圖片尺寸選擇對應的 Rich Menu 類型
+        const { width, height } = imageMetadata;
+        
+        if (width === 2500 && height === 843) {
+          // Wide Menu
+          logger.info('根據圖片尺寸選擇 Wide Rich Menu (2500x843)');
+          richMenuId = await lineService.createWideRichMenu();
+          result.menuType = 'Wide Menu (2500x843)';
+        } else if (width === 2500 && height === 1686) {
+          // Full Menu
+          logger.info('根據圖片尺寸選擇 Full Rich Menu (2500x1686)');
+          richMenuId = await lineService.createRichMenu();
+          result.menuType = 'Full Menu (2500x1686)';
+        } else if (width === 1038 && height === 635) {
+          // Compact Menu
+          logger.info('根據圖片尺寸選擇 Compact Rich Menu (1038x635)');
+          richMenuId = await lineService.createCompactRichMenu();
+          result.menuType = 'Compact Menu (1038x635)';
+        } else {
+          // 預設使用 Compact Menu，但警告尺寸不匹配
+          logger.warn('圖片尺寸不符合標準，使用預設 Compact Menu', {
+            width,
+            height,
+            expected: '1038x635, 2500x843, 或 2500x1686',
+          });
+          richMenuId = await lineService.createCompactRichMenu();
+          result.menuType = 'Compact Menu (1038x635)';
+          result.warning = `圖片尺寸 (${width}x${height}) 不符合標準 Rich Menu 尺寸，可能無法正常顯示。建議使用 1038x635、2500x843 或 2500x1686。`;
+        }
+      } else {
+        // 沒有提供圖片，使用預設 Compact Menu
+        logger.info('未提供圖片，使用預設 Compact Rich Menu');
+        richMenuId = await lineService.createCompactRichMenu();
+        result.menuType = 'Compact Menu (1038x635)';
+      }
+
+      logger.info('Rich Menu 創建成功', { richMenuId, menuType: result.menuType });
+      result.richMenuId = richMenuId;
+      result.steps.step1_create = '成功';
+    } catch (createError: any) {
+      logger.error('創建 Rich Menu 失敗', { error: createError.message });
+      return NextResponse.json(
+        {
+          success: false,
+          error: createError.message || '創建 Rich Menu 失敗',
+        },
+        { status: 500 }
+      );
+    }
+
+    // 步驟 2: 上傳圖片（如果提供）
     if (contentType && contentType.includes('multipart/form-data')) {
       try {
         const formData = await request.formData();
@@ -74,11 +167,21 @@ export async function POST(request: NextRequest): Promise<Response> {
             const image = sharp(originalBuffer);
             const metadata = await image.metadata();
             
-            logger.info('圖片資訊', {
-              width: metadata.width,
-              height: metadata.height,
-              format: metadata.format,
-            });
+            // 驗證尺寸是否匹配
+            if (metadata.width && metadata.height) {
+              const menuSize = result.menuType?.match(/\((\d+)x(\d+)\)/);
+              if (menuSize) {
+                const expectedWidth = parseInt(menuSize[1]);
+                const expectedHeight = parseInt(menuSize[2]);
+                if (metadata.width !== expectedWidth || metadata.height !== expectedHeight) {
+                  logger.warn('圖片尺寸與 Rich Menu 尺寸不匹配', {
+                    imageSize: `${metadata.width}x${metadata.height}`,
+                    menuSize: `${expectedWidth}x${expectedHeight}`,
+                  });
+                  result.warning = `圖片尺寸 (${metadata.width}x${metadata.height}) 與 Rich Menu 尺寸 (${expectedWidth}x${expectedHeight}) 不匹配，可能無法正常顯示。`;
+                }
+              }
+            }
 
             processedImage = await image
               .jpeg({ quality: 90 })
@@ -101,6 +204,7 @@ export async function POST(request: NextRequest): Promise<Response> {
             original: originalBuffer.length,
             processed: processedImage.length,
             format: 'jpeg',
+            dimensions: imageMetadata ? `${imageMetadata.width}x${imageMetadata.height}` : undefined,
           };
 
           // 步驟 3: 設為預設 Rich Menu（只有上傳圖片後才能設置）

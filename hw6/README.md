@@ -181,29 +181,56 @@ https://your-app.vercel.app/api/line
 
 ## 部署到 Vercel
 
-### 1. 準備專案
+### 快速部署指南
 
-確保所有環境變數都已設定在 `.env.local`。
+詳細的部署說明請參考：[VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md)
 
-### 2. 部署
+### 部署到 my-chat-bot-blush.vercel.app
+
+#### 1. 設定環境變數
+
+在 Vercel Dashboard 中設定以下環境變數：
 
 ```bash
-# 安裝 Vercel CLI
-npm i -g vercel
-
-# 部署
-vercel
+LINE_CHANNEL_ACCESS_TOKEN=your_token
+LINE_CHANNEL_SECRET=your_secret
+OPENAI_API_KEY=your_key
+OPENAI_MODEL=gpt-4o-mini
+MONGODB_URI=your_mongodb_uri
+NEXT_PUBLIC_APP_URL=https://my-chat-bot-blush.vercel.app
 ```
 
-或透過 GitHub 連接自動部署。
+#### 2. 部署專案
 
-### 3. 設定環境變數
+```bash
+# 使用 Vercel CLI
+vercel --prod
 
-在 Vercel 專案設定中新增所有環境變數。
+# 或推送代碼到 Git（自動部署）
+git push origin main
+```
 
-### 4. 設定 Line Webhook
+#### 3. 設定 Line Webhook
 
-更新 Line Developers Console 中的 Webhook URL 為 Vercel 部署的 URL。
+在 Line Developers Console 設定 Webhook URL：
+```
+https://my-chat-bot-blush.vercel.app/api/line
+```
+
+#### 4. 設置 Rich Menu
+
+```bash
+./scripts/setup-richmenu-production.sh richmenue.png
+```
+
+### 詳細說明
+
+請參考 [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) 獲取完整的部署指南，包括：
+- 環境變數設定
+- Webhook 配置
+- Rich Menu 設置
+- 常見問題排查
+- 監控與日誌
 
 ## 開發注意事項
 

@@ -37,3 +37,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 /scripts
+
+RICHMENU_CHECKLIST.md
+RICHMENU_SETUP.md
+VERCEL_DEPLOYMENT.md

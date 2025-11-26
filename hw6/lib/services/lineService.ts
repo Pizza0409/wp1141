@@ -9,6 +9,15 @@ const client = new Client({
 
 const defaultRichMenuId = process.env.LINE_DEFAULT_RICH_MENU_ID;
 
+function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    stream.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
+    stream.on('error', (error) => reject(error));
+  });
+}
+
 export class LineService {
   /**
    * 回覆文字訊息
@@ -662,6 +671,21 @@ export class LineService {
       logger.info('成功設定 Rich Menu 圖片', { richMenuId });
     } catch (error: any) {
       logger.error('設定 Rich Menu 圖片失敗', { error: error.message, richMenuId });
+      throw error;
+    }
+  }
+
+  /**
+   * 取得 Rich Menu 圖片
+   */
+  async getRichMenuImage(richMenuId: string): Promise<Buffer> {
+    try {
+      const stream = (await client.getRichMenuImage(richMenuId)) as NodeJS.ReadableStream;
+      const buffer = await streamToBuffer(stream);
+      logger.info('成功取得 Rich Menu 圖片', { richMenuId, size: buffer.length });
+      return buffer;
+    } catch (error: any) {
+      logger.error('取得 Rich Menu 圖片失敗', { error: error.message, richMenuId });
       throw error;
     }
   }

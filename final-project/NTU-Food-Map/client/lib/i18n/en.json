@@ -1,0 +1,290 @@
+{
+  "common": {
+    "language": "Language",
+    "chinese": "中文",
+    "english": "English",
+    "search": "Search",
+    "filter": "Filter",
+    "reset": "Reset",
+    "apply": "Apply",
+    "close": "Close",
+    "back": "Back",
+    "loading": "Loading...",
+    "error": "Error",
+    "noResults": "No results",
+    "total": "Total",
+    "retry": "Retry",
+    "notFound": "Page Not Found",
+    "notFoundDescription": "The page you are looking for does not exist",
+    "backToHome": "Back to Home",
+    "googleMapsTimeout": "Google Maps API loading timeout. Please refresh the page.",
+    "googleMapsLoadError": "Failed to load Google Maps API",
+    "cancel": "Cancel"
+  },
+  "map": {
+    "title": "NTU Food Map",
+    "subtitle": "Explore food places near NTU",
+    "center": "Center on my location",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "selectLocation": "Selected Location",
+    "basePoint": "Base Point",
+    "viewDetails": "View Details",
+    "viewNearby": "View Nearby Restaurants",
+    "clickToSelectCenter": "Click on a location on the map to select the search center. The system will use Google Maps restaurant information for filtering.",
+    "selectedLocation": "Selected location",
+    "distanceFromBasePoint": "Distance from Base Point",
+    "viewRoute": "View Route",
+    "searchBasePoint": "Search for a location as base point...",
+    "basePointLocked": "Base point is locked. Click reset or use search to change it"
+  },
+  "filters": {
+    "title": "Filters",
+    "distance": "Distance",
+    "maxDistance": "Max distance",
+    "rating": "Rating",
+    "minRating": "Min rating",
+    "price": "Price",
+    "priceLevel": {
+      "1": "$",
+      "2": "$$",
+      "3": "$$$",
+      "4": "$$$$"
+    },
+    "priceLevelName": {
+      "1": "Inexpensive",
+      "2": "Moderate",
+      "3": "Expensive",
+      "4": "Very Expensive"
+    },
+    "selectedPrice": "Selected price",
+    "categories": "Categories",
+    "features": "Features",
+    "openNow": "Open now only",
+    "internationalFriendly": "International friendly",
+    "filteredResults": "Filtered Results",
+    "categoryNames": {
+      "餐廳": "Restaurant",
+      "咖啡廳": "Cafe",
+      "小吃": "Snacks",
+      "夜市": "Night Market",
+      "速食": "Fast Food",
+      "日式": "Japanese",
+      "中式": "Chinese",
+      "西式": "Western"
+    }
+  },
+  "place": {
+    "details": "Place Details",
+    "rating": "Rating",
+    "price": "Price",
+    "distance": "Distance",
+    "address": "Address",
+    "phone": "Phone",
+    "hours": "Hours",
+    "categories": "Categories",
+    "features": "Features",
+    "reviews": "Reviews",
+    "photos": "Photos",
+    "recommendationScore": "Recommendation Score",
+    "scoreBreakdown": "Score Breakdown",
+    "website": "Website",
+    "notProvided": "Not provided",
+    "unknownPlace": "Unknown Place",
+    "backToMap": "Back to Map",
+    "reviewsSource": "Review data source: Google Places API",
+    "monday": "Monday",
+    "tuesday": "Tuesday",
+    "wednesday": "Wednesday",
+    "thursday": "Thursday",
+    "friday": "Friday",
+    "saturday": "Saturday",
+    "sunday": "Sunday"
+  },
+  "roulette": {
+    "title": "Food Roulette",
+    "subtitle": "Let the wheel decide what to eat today!",
+    "spin": "Spin",
+    "result": "Result",
+    "selectedPlace": "Selected Place",
+    "tryAgain": "Spin Again",
+    "ready": "Ready",
+    "availablePlaces": "Available Places",
+    "places": "places",
+    "noPlacesAvailable": "No restaurants match the current filters. Please adjust your filters and try again.",
+    "countError": "Unable to get place count",
+    "spinError": "Failed to spin roulette. Please try again later."
+  },
+  "scoreBreakdown": {
+    "title": "Score Breakdown",
+    "rating": "Rating",
+    "distance": "Distance",
+    "popularity": "Popularity",
+    "openStatus": "Open Status",
+    "context": "Context"
+  },
+  "usageInstructions": {
+    "title": "Usage Instructions",
+    "button": "Instructions",
+    "close": "Close",
+    "sections": {
+      "features": {
+        "title": "Feature Usage",
+        "content": [
+          "1. Set Base Point (Point A):",
+          "   • Use the search box to enter a location name or address to search and set the base point",
+          "   • Or click on a location on the map to set the base point (only available when no base point is set)",
+          "   • Once set, the base point is locked and won't change if you accidentally click on the map",
+          "2. Use the filters on the left to set search criteria:",
+          "   • Max Distance: Drag the slider or directly enter a value in the input box (100-5000 meters)",
+          "   • Min Rating: Drag the slider or directly enter a value (0-5, supports decimals)",
+          "   • Price: Select the maximum acceptable price level",
+          "   • Categories: Select restaurant types (multiple selection available)",
+          "   • Features: Select special requirements (e.g., show only open restaurants)",
+          "3. View Filtered Results:",
+          "   • Filtered restaurants are displayed on the map and shown in a list at the bottom left",
+          "   • Click on restaurant markers or restaurants in the list to view details",
+          "   • Clicking on a restaurant won't change the base point",
+          "4. Change Base Point:",
+          "   • Click the \"View Nearby Restaurants\" button in restaurant details to change the base point to that restaurant",
+          "   • Or use the search box to search for a new location to set the base point",
+          "   • Click the \"Reset\" button to clear all settings (including base point) and start over",
+          "5. Other Features:",
+          "   • Food Roulette: Randomly select from filtered restaurants",
+          "   • Click on empty areas of the map to close restaurant info windows"
+        ]
+      },
+      "design": {
+        "title": "Design Explanation",
+        "priceStandard": {
+          "title": "Price Level Standard",
+          "content": "Price levels are based on Google Places API's price_level setting. Map markers are color-coded by price level:",
+          "levels": {
+            "1": "$ - Inexpensive (Green marker 🟢): Usually snacks, street vendors, etc. Average cost around NT$100 or less",
+            "2": "$$ - Moderate (Yellow marker 🟡): General restaurants, cafes, etc. Average cost around NT$100-300",
+            "3": "$$$ - Expensive (Orange marker 🟠): Mid-to-high-end restaurants. Average cost around NT$300-600",
+            "4": "$$$$ - Very Expensive (Red marker 🔴): High-end restaurants. Average cost around NT$600 or more"
+          }
+        },
+        "ratingStandard": {
+          "title": "Rating Standard",
+          "content": "Ratings come from Google Maps user reviews, ranging from 0-5 stars. The system displays average ratings and review counts"
+        },
+        "distanceStandard": {
+          "title": "Distance Calculation",
+          "content": "Distance is calculated using straight-line distance (Haversine formula) in meters or kilometers. Click \"View Route\" to open Google Maps and see the actual route"
+        }
+      }
+    }
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "signInWithGoogle": "Sign in with Google",
+    "signInWithLine": "Sign in with Line",
+    "selectSignInMethod": "Please select a sign-in method",
+    "loading": "Loading...",
+    "signInRequired": "Please sign in",
+    "signInToComment": "Sign in to comment",
+    "signInToFavorite": "Sign in to favorite"
+  },
+  "comments": {
+    "title": "Comments",
+    "addComment": "Add Comment",
+    "editComment": "Edit Comment",
+    "deleteComment": "Delete Comment",
+    "commentContent": "Comment Content",
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "like": "Like",
+    "dislike": "Dislike",
+    "likes": "Likes",
+    "dislikes": "Dislikes",
+    "edited": "Edited",
+    "sortBy": "Sort By",
+    "sortByTime": "Post Time",
+    "sortByLikes": "Like Count",
+    "noComments": "No comments yet",
+    "rating": "Rating",
+    "selectRating": "Select Rating (Optional)"
+  },
+  "favorites": {
+    "title": "My Favorites",
+    "addToFavorites": "Add to Favorites",
+    "removeFromFavorites": "Remove from Favorites",
+    "note": "Note",
+    "addNote": "Add Note",
+    "editNote": "Edit Note",
+    "saveNote": "Save Note",
+    "noFavorites": "No favorites yet",
+    "favorited": "Favorited"
+  },
+  "profile": {
+    "title": "Profile",
+    "editButton": "Edit Profile",
+    "cancelEdit": "Cancel",
+    "editTitle": "Edit Profile",
+    "stats": {
+      "comments": "Comments",
+      "favorites": "Favorites"
+    },
+    "tabs": {
+      "comments": "My Comments",
+      "favorites": "My Favorites"
+    },
+    "error": {
+      "loading": "Failed to load profile"
+    },
+    "edit": {
+      "name": "Name",
+      "email": "Email",
+      "save": "Save",
+      "saving": "Saving...",
+      "cancel": "Cancel",
+      "nameRequired": "Name is required",
+      "nameTooLong": "Name must be 50 characters or less",
+      "nameLengthWarning": "Name is getting long",
+      "emailRequired": "Email is required",
+      "invalidEmail": "Invalid email format",
+      "saveFailed": "Failed to save profile",
+      "emailOAuthHint": "Email cannot be changed for OAuth accounts"
+    },
+    "avatar": {
+      "selectFile": "Select Image",
+      "upload": "Upload",
+      "uploading": "Uploading...",
+      "uploadFailed": "Upload failed",
+      "invalidType": "Invalid file type. Only images are allowed.",
+      "fileTooLarge": "File size exceeds 5MB limit.",
+      "hint": "Maximum file size: 5MB. Supported formats: JPEG, PNG, WebP, GIF",
+      "alt": "User Avatar",
+      "placeholder": "?",
+      "uploadFile": "Upload File",
+      "pasteUrl": "Paste URL",
+      "urlPlaceholder": "Enter image URL (e.g., https://example.com/image.jpg)",
+      "urlHint": "Paste an image URL from the web",
+      "applyUrl": "Apply URL",
+      "invalidUrl": "Invalid URL format",
+      "urlRequired": "Please enter an image URL",
+      "urlMustStartWithHttp": "URL must start with http:// or https://",
+      "imageLoadFailed": "Unable to load image from this URL. Please check if the URL is correct and the image is accessible.",
+      "invalidImageUrl": "Unable to load image from this URL",
+      "preview": "Preview"
+    },
+    "comments": {
+      "noComments": "You haven't commented on any places yet.",
+      "edited": "Edited",
+      "loadMore": "Load More",
+      "unknownPlace": "Unknown Place"
+    },
+    "favorites": {
+      "noFavorites": "You haven't favorited any places yet.",
+      "note": "Note",
+      "addedOn": "Added on",
+      "loadingPlace": "Loading place information"
+    }
+  }
+}
+
